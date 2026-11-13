@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import FilterBar from '@/components/FilterBar';
 import LogCard, { LogItem } from '@/components/LogCard';
-import { getFilteredLogs, deleteLog } from '@/lib/actions/logActions';
-import { getUserCategories } from '@/lib/actions/categoryActions';
+import LogModal from '@/components/LogModal';
+import { getFilteredLogs, deleteLog, createLog, updateLog } from '@/lib/actions/logActions';
+import { getUserCategories, createCategory } from '@/lib/actions/categoryActions';
 
 interface DashboardClientProps {
   userId: string;
@@ -14,7 +15,6 @@ interface DashboardClientProps {
 
 export default function DashboardClient({ userId }: DashboardClientProps) {
   const searchParams = useSearchParams();
-  
   const urlSearchQuery = searchParams.get('search') || '';
 
   const [categories, setCategories] = useState<any[]>([]);
@@ -23,6 +23,10 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Edit and Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<LogItem | null>(null);
 
   const activeSearch = searchQuery || urlSearchQuery;
 
@@ -51,18 +55,41 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
   useEffect(() => {
     loadData();
 
-    const handleDataCreated = () => {
+    const handleDataRefresh = () => {
       loadData();
     };
 
-    window.addEventListener('logCreated', handleDataCreated);
-    window.addEventListener('categoryCreated', handleDataCreated);
+    const handleEditLogEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setEditingLog(customEvent.detail);
+      }
+    };
+
+    window.addEventListener('logCreated', handleDataRefresh);
+    window.addEventListener('categoryCreated', handleDataRefresh);
+    window.addEventListener('editLog', handleEditLogEvent as EventListener);
 
     return () => {
-      window.removeEventListener('logCreated', handleDataCreated);
-      window.removeEventListener('categoryCreated', handleDataCreated);
+      window.removeEventListener('logCreated', handleDataRefresh);
+      window.removeEventListener('categoryCreated', handleDataRefresh);
+      window.removeEventListener('editLog', handleEditLogEvent as EventListener);
     };
   }, [loadData]);
+
+  const handleSaveLog = async (payload: any, isEditing: boolean, logId?: string) => {
+    if (isEditing && logId) {
+      await updateLog(logId, userId, payload);
+    } else {
+      await createLog({ ...payload, userId });
+    }
+    loadData();
+  };
+
+  const handleCreateCategory = async (catData: any) => {
+    await createCategory(catData);
+    loadData();
+  };
 
   const addTagFilter = (tag: string) => {
     if (!selectedTags.includes(tag)) {
@@ -124,7 +151,13 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
         ) : logs.length > 0 ? (
           <div className="space-y-4 pb-6">
             {logs.map((log) => (
-              <LogCard key={log._id} log={log} onDelete={handleDeleteLog} onTagClick={addTagFilter} />
+              <LogCard 
+                key={log._id} 
+                log={log} 
+                onEdit={(item) => setEditingLog(item)} 
+                onDelete={handleDeleteLog} 
+                onTagClick={addTagFilter} 
+              />
             ))}
           </div>
         ) : (
@@ -136,6 +169,21 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
           </div>
         )}
       </div>
+
+      {/* Log Modal for both Creating and Editing */}
+      <LogModal
+        isOpen={isModalOpen || !!editingLog}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingLog(null);
+        }}
+        categories={categories}
+        userId={userId}
+        initialData={editingLog}
+        onSaveLog={handleSaveLog}
+        onCreateCategory={handleCreateCategory}
+        onSuccess={loadData}
+      />
     </div>
   );
 }

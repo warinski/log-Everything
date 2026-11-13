@@ -121,8 +121,10 @@ export async function getFilteredLogs({
       query.tags = { $all: tags };
     }
 
-    // Fetch logs matching basic filters first
-    const logs = await Log.find(query).sort({ timestamp: -1 }).lean();
+    // Fetch logs matching basic filters first, sorted with latest timestamp/creation first
+    const logs = await Log.find(query)
+      .sort({ timestamp: -1, createdAt: -1 })
+      .lean();
 
     // If there is a search query, filter in-memory to guarantee exact matching
     // across title, notes, tags, categoryName, AND all dynamic attributes (keys and values)

@@ -47,11 +47,12 @@ export default function LogModal({
   const [tagsInput, setTagsInput] = useState('');
   const [dynamicAttributes, setDynamicAttributes] = useState<Record<string, any>>({});
   
-  // Category creation toggle, emoji, color, & fields state
+  // Category creation toggle, emoji, color, popup state & fields
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('📁');
   const [newCatColor, setNewCatColor] = useState('#3B82F6');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // 👈 Emoji popup state
   const [newFields, setNewFields] = useState<Array<{ 
     label: string; 
     type: string; 
@@ -76,6 +77,7 @@ export default function LogModal({
       setDynamicAttributes({});
     }
     setIsCreatingCategory(false);
+    setShowEmojiPicker(false);
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
@@ -118,8 +120,8 @@ export default function LogModal({
       setNewCatColor('#3B82F6');
       setNewFields([]);
       setIsCreatingCategory(false);
+      setShowEmojiPicker(false);
       
-      // Dispatch event to force feed update
       window.dispatchEvent(new CustomEvent('categoryCreated'));
       onSuccess();
     } catch (err) {
@@ -139,14 +141,13 @@ export default function LogModal({
         .map((t) => t.trim())
         .filter(Boolean);
 
-      // Match the selected category template to grab its emoji and color
       const matchedCategory = categories.find((c) => c._id === selectedCategory);
 
       const payload = {
         categoryId: selectedCategory || undefined,
-        categoryName: matchedCategory?.name || undefined,
-        categoryIcon: matchedCategory?.icon || '',     // 👈 Pass emoji icon explicitly
-        categoryColor: matchedCategory?.color || '',   // 👈 Pass color explicitly
+        categoryName: matchedCategory?.name || '',
+        categoryIcon: matchedCategory?.icon || '',
+        categoryColor: matchedCategory?.color || '',
         title,
         notes,
         tags,
@@ -154,14 +155,11 @@ export default function LogModal({
         timestamp: new Date(),
       };
 
-      // console.log('MODAL PAYLOAD BEING SENT:', payload);
-
       const isEditing = !!initialData;
       const logId = initialData?._id;
 
       await onSaveLog(payload, isEditing, logId);
       
-      // Dispatch event to force feed update
       window.dispatchEvent(new CustomEvent('logCreated'));
       onSuccess();
       onClose();
@@ -190,7 +188,10 @@ export default function LogModal({
             <span className="text-xs font-bold text-gray-700 uppercase">Category & Templates</span>
             <button
               type="button"
-              onClick={() => setIsCreatingCategory(!isCreatingCategory)}
+              onClick={() => {
+                setIsCreatingCategory(!isCreatingCategory);
+                setShowEmojiPicker(false);
+              }}
               className="text-xs font-semibold text-blue-600 hover:underline"
             >
               {isCreatingCategory ? 'Cancel New Category' : '+ Create New Category'}
@@ -199,14 +200,40 @@ export default function LogModal({
 
           {isCreatingCategory ? (
             <div className="space-y-3 pt-2 border-t border-gray-200">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newCatIcon}
-                  onChange={(e) => setNewCatIcon(e.target.value)}
-                  className="w-14 text-center px-2 py-2 bg-white border border-gray-200 rounded-lg text-sm"
-                  title="Emoji Icon"
-                />
+              <div className="flex items-center gap-2 relative">
+                {/* Emoji Trigger Button & Popup Grid */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="w-12 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-lg text-lg hover:bg-gray-50 cursor-pointer shadow-xs"
+                    title="Choose Emoji"
+                  >
+                    {newCatIcon}
+                  </button>
+
+                  {showEmojiPicker && (
+                    <div className="absolute left-0 mt-2 p-2 bg-white border border-gray-200 rounded-xl shadow-xl grid grid-cols-4 gap-1.5 z-30 w-48">
+                      {['📁', '💼', '🏃‍♂️', '💰', '🎯', '📚', '⚡', '💡', '🔥', '🍎', 
+                        '💻', '🛠️', '🎨', '✈️', '🛒', '🧘‍♂️', '🚀', '⭐', '❤️', '📅',
+                        '🏠', '💪', '☕', '🍔', '🐶', '🐱', '🎵', '🎮', '📈', 
+                        '📝', '🧠', '💊', '💧', '☀️', '🌙', '🚗', '🎓', '🎁', '📌'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => {
+                            setNewCatIcon(emoji);
+                            setShowEmojiPicker(false);
+                          }}
+                          className="h-9 flex items-center justify-center hover:bg-gray-100 rounded-lg text-xl transition-colors cursor-pointer"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <input
                   type="text"
                   placeholder="Category Name (e.g. Workouts, Finance)"
@@ -218,7 +245,7 @@ export default function LogModal({
                   type="color"
                   value={newCatColor}
                   onChange={(e) => setNewCatColor(e.target.value)}
-                  className="w-10 h-9 p-1 bg-white border border-gray-200 rounded-lg cursor-pointer"
+                  className="w-10 h-10 p-1 bg-white border border-gray-200 rounded-lg cursor-pointer"
                   title="Category Color"
                 />
               </div>

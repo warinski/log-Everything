@@ -1,10 +1,10 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import DashboardLayoutClient from '@/components/DashboardLayoutClient';
 
-export const instant = false; // 👈 Allows the route to be a blocking route for dynamic requests like auth()
-
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  headers(); // Forces Next.js to treat this layout as dynamic on-demand
   const session = await auth();
 
   if (!session || !session.user) {

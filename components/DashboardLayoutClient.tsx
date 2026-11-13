@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Tags, FolderKanban, BarChart3, Settings, Plus, LogOut } from 'lucide-react';
+import { LayoutDashboard, Tags, FolderKanban, BarChart3, Settings, Plus, LogOut, Layers3 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import LogModal, { CategoryTemplate } from '@/components/LogModal';
 import { LogItem } from '@/components/LogCard';
@@ -86,11 +86,16 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col justify-between shrink-0">
         <div>
-          <div className="h-16 flex items-center px-6 border-b border-gray-100">
-            <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Log Everything
+          {/* 👈 App Brand Header with NEW LOGO & NAME */}
+          <div className="h-20 flex items-center gap-3 px-6 border-b border-gray-100">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
+              <Layers3 className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-xl font-extrabold text-gray-950 tracking-tighter">
+              Logger<span className="text-blue-600">Logger</span>
             </span>
           </div>
+
           <nav className="p-4 space-y-1">
             <Link href="/dashboard" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
               <LayoutDashboard className="w-4 h-4 text-gray-500" /> Main Feed & Logs
@@ -128,20 +133,20 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
 
       {/* Main Workspace */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
+        <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
           <div className="flex items-center gap-4 w-full max-w-md">
             <input
               type="text"
               value={currentSearch}
               onChange={handleSearchChange}
               placeholder="Search logs, attributes, or tags..."
-              className="w-full bg-gray-100 border-none rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full bg-gray-100 border-none rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm"
             >
               <Plus className="w-4 h-4" /> New Log Entry
             </button>
