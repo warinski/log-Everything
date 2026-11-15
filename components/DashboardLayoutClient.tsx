@@ -82,11 +82,12 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
+    // 👈 Constrained to h-screen and hidden outer overflow to fit the screen viewport
+    <div className="h-screen flex flex-col md:flex-row bg-gray-50 overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col justify-between shrink-0">
+      <aside className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col justify-between shrink-0 h-full">
         <div>
-          {/* 👈 App Brand Header with NEW LOGO & NAME */}
+          {/* App Brand Header */}
           <div className="h-20 flex items-center gap-3 px-6 border-b border-gray-100">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
               <Layers3 className="w-6 h-6 text-white" />
@@ -124,7 +125,7 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
 
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" /> Sign Out
           </button>
@@ -132,7 +133,7 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
       </aside>
 
       {/* Main Workspace */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
           <div className="flex items-center gap-4 w-full max-w-md">
             <input
@@ -146,14 +147,16 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm"
+              style={{ backgroundColor: '#2563EB' }}
+              className="flex items-center gap-2 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" /> New Log Entry
             </button>
           </div>
         </header>
 
-        <main className="flex-1 p-6 overflow-y-auto">{children}</main>
+        {/* 👈 Only this inner container scrolls when your logs list is long */}
+        <main className="flex-1 p-6">{children}</main>
       </div>
 
       <LogModal

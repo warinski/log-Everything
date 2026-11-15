@@ -5,8 +5,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Log Everything App',
-  description: 'Flexible event and transaction logger with dynamic schemas',
+  title: 'LoggerLogger',
+  description: 'Flexible event and transaction logger with dynamic fields',
 };
 
 export default function RootLayout({
@@ -15,8 +15,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full bg-gray-50" suppressHydrationWarning>
-      <body className={`${inter.className} h-full antialiased text-gray-900`}>
+    <html lang="en" className={`${inter.className} h-full bg-gray-50`} suppressHydrationWarning>
+      <body className="h-full antialiased text-gray-900">
         {children}
       </body>
     </html>

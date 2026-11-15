@@ -126,7 +126,7 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
       <div className="shrink-0 space-y-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Activity Timeline</h1>
-          <p className="text-sm text-gray-500 mt-1">Browse and manage your dynamic logs from MongoDB Atlas.</p>
+          <p className="text-sm text-gray-500 mt-1">Browse and manage your dynamic logs</p>
         </div>
 
         <FilterBar

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
+import { Layers3 } from 'lucide-react'; // 👈 Imported logo icon
 import { registerUser } from '@/lib/actions/authActions';
 
 export default function SignupPage() {
@@ -20,10 +21,8 @@ export default function SignupPage() {
     setError('');
 
     try {
-      // 1. Register the user in MongoDB
       await registerUser({ name, email, password });
 
-      // 2. Automatically log them in after successful registration
       const result = await signIn('credentials', {
         redirect: false,
         email,
@@ -46,6 +45,17 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-6">
+        
+        {/* 👈 LoggerLogger Branding Header */}
+        <div className="flex items-center gap-3 pb-2 border-b border-gray-100">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
+            <Layers3 className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-extrabold text-gray-950 tracking-tighter">
+            Logger<span className="text-blue-600">Logger</span>
+          </span>
+        </div>
+
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Create an Account</h1>
           <p className="text-sm text-gray-500 mt-1">Get started with your secure logging dashboard.</p>
@@ -97,7 +107,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm cursor-pointer"
           >
             {isLoading ? 'Creating Account...' : 'Sign Up'}
           </button>
