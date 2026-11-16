@@ -122,11 +122,10 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 flex flex-col h-[calc(100vh-6rem)]">
-      <div className="shrink-0 space-y-4">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 flex flex-col h-[calc(100vh-5rem)] sm:h-[calc(100vh-7rem)] px-2 sm:px-4">
+      <div className="shrink-0 space-y-3 sm:space-y-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Activity Timeline</h1>
-          <p className="text-sm text-gray-500 mt-1">Browse and manage your dynamic logs</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">Activity Timeline</h1>
         </div>
 
         <FilterBar
@@ -145,11 +144,11 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-0">
+      <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 space-y-3 sm:space-y-4 min-h-0 [-webkit-overflow-scrolling:touch]">
         {isLoading ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">Loading logs from database...</div>
+          <div className="bg-white border border-blue-100 rounded-2xl p-12 text-center text-sm text-gray-400 shadow-2xs">Loading logs from database...</div>
         ) : logs.length > 0 ? (
-          <div className="space-y-4 pb-6">
+          <div className="space-y-3 sm:space-y-4 pb-6">
             {logs.map((log) => (
               <LogCard 
                 key={log._id} 
@@ -161,7 +160,7 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
             ))}
           </div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl p-12 text-center space-y-3">
+          <div className="bg-white border border-blue-100 rounded-2xl p-12 text-center space-y-3 shadow-2xs">
             <p className="text-sm text-gray-500">No log entries found matching your criteria.</p>
             <button onClick={clearAllFilters} className="text-xs font-semibold text-blue-600 hover:underline">
               Clear filters

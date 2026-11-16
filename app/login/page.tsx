@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Layers3 } from 'lucide-react'; // 👈 Imported logo icon
+import { Layers3 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,9 +40,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      
+      {/* Login Card Container */}
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-6">
         
-        {/* 👈 LoggerLogger Branding Header */}
+        {/* LoggerLogger Branding Header */}
         <div className="flex items-center gap-3 pb-2 border-b border-gray-100">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
             <Layers3 className="w-6 h-6 text-white" />
@@ -53,8 +55,8 @@ export default function LoginPage() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Welcome Back</h1>
-          <p className="text-sm text-gray-500 mt-1">Sign in to access your logging dashboard.</p>
+          <h1 className="text-xl font-bold tracking-tight text-gray-900">Welcome Back</h1>
+          <p className="text-xs text-gray-500 mt-1">Sign in to access your logging dashboard.</p>
         </div>
 
         {error && (
@@ -71,7 +73,7 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-900 bg-white"
               placeholder="you@example.com"
             />
           </div>
@@ -83,7 +85,7 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-900 bg-white"
               placeholder="••••••••"
             />
           </div>
@@ -91,7 +93,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm cursor-pointer"
+            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>

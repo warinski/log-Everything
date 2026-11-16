@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Tags, FolderKanban, BarChart3, Settings, Plus, LogOut, Layers3 } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { Plus, Menu, X, Layers3 } from 'lucide-react';
+import Sidebar from '@/components/Sidebar';
 import LogModal, { CategoryTemplate } from '@/components/LogModal';
 import { LogItem } from '@/components/LogCard';
 import { getUserCategories, createCategory } from '@/lib/actions/categoryActions';
@@ -22,6 +21,7 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
   const currentSearch = searchParams.get('search') || '';
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<LogItem | null>(null);
   const [categories, setCategories] = useState<CategoryTemplate[]>([]);
 
@@ -37,7 +37,6 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
   useEffect(() => {
     loadCategories();
 
-    // Listen for custom edit events dispatched from LogCard components
     const handleEditLogEvent = (e: CustomEvent<LogItem>) => {
       setEditingLog(e.detail);
     };
@@ -51,7 +50,7 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
   const handleCreateCategory = async (newCatData: Record<string, unknown>) => {
     await createCategory({ ...newCatData, userId });
     await loadCategories();
-    router.refresh(); // 👈 Refreshes server components
+    router.refresh();
   };
 
   const handleSaveLog = async (logData: Record<string, unknown>, isEditing: boolean, logId?: string) => {
@@ -60,7 +59,7 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
     } else {
       await createLog({ ...logData, userId });
     }
-    router.refresh(); // 👈 Refreshes server components to show new/updated logs immediately
+    router.refresh();
   };
 
   const handleSuccessAction = () => {
@@ -82,81 +81,110 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
   };
 
   return (
-    // 👈 Constrained to h-screen and hidden outer overflow to fit the screen viewport
-    <div className="h-screen flex flex-col md:flex-row bg-gray-50 overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col justify-between shrink-0 h-full">
-        <div>
-          {/* App Brand Header */}
-          <div className="h-20 flex items-center gap-3 px-6 border-b border-gray-100">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
-              <Layers3 className="w-6 h-6 text-white" />
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden relative">
+      {/* 1. Full-Width Top Header Spanning the Entire Viewport */}
+      {/* Mobile / 11" iPad Header */}
+      <header className="xl:hidden h-16 bg-white border-b border-blue-100 px-4 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-2xs w-full">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 rounded-xl bg-blue-50/50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
+            aria-label="Toggle Navigation Menu"
+          >
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
+              <Layers3 className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-extrabold text-gray-950 tracking-tighter">
               Logger<span className="text-blue-600">Logger</span>
             </span>
           </div>
-
-          <nav className="p-4 space-y-1">
-            <Link href="/dashboard" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
-              <LayoutDashboard className="w-4 h-4 text-gray-500" /> Main Feed & Logs
-            </Link>
-            <Link href="/dashboard/tags" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
-              <Tags className="w-4 h-4 text-gray-500" /> Tags Management
-            </Link>
-            <Link href="/dashboard/categories" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
-              <FolderKanban className="w-4 h-4 text-gray-500" /> Categories & Templates
-            </Link>
-            <Link href="/dashboard/analytics" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
-              <BarChart3 className="w-4 h-4 text-gray-500" /> Insights & Analytics
-            </Link>
-          </nav>
         </div>
 
-        <div className="p-4 border-t border-gray-100 space-y-3">
-          <Link href="/dashboard/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
-            <Settings className="w-4 h-4 text-gray-500" /> Settings
-          </Link>
-          
-          <div className="px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-500 truncate">
-            <span className="font-semibold block text-gray-700">{userName}</span>
-            <span className="text-[10px] text-gray-400">Authenticated</span>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          style={{ backgroundColor: '#2563EB' }}
+          className="flex items-center gap-1.5 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" /> New
+        </button>
+      </header>
+
+      {/* Desktop Full-Width Header */}
+      <header className="hidden xl:flex h-20 bg-white border-b border-blue-100 items-center justify-between px-6 shrink-0 sticky top-0 z-30 w-full shadow-2xs">
+        {/* Left: Brand Logo & Text */}
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
+            <Layers3 className="w-6 h-6 text-white" />
           </div>
-
-          <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" /> Sign Out
-          </button>
+          <span className="text-xl font-extrabold text-gray-950 tracking-tighter">
+            Logger<span className="text-blue-600">Logger</span>
+          </span>
         </div>
-      </aside>
 
-      {/* Main Workspace */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-4 w-full max-w-md">
+        {/* Right: Search Bar & New Log Entry Button side-by-side with matched height */}
+        <div className="flex items-center gap-3">
+          <div className="w-72 sm:w-80 lg:w-96">
             <input
               type="text"
               value={currentSearch}
               onChange={handleSearchChange}
               placeholder="Search logs, attributes, or tags..."
-              className="w-full bg-gray-100 border-none rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full h-[42px] bg-blue-50/30 border border-blue-100 rounded-xl px-4 text-sm text-gray-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 transition-all box-border"
             />
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsModalOpen(true)}
-              style={{ backgroundColor: '#2563EB' }}
-              className="flex items-center gap-2 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> New Log Entry
-            </button>
-          </div>
-        </header>
 
-        {/* 👈 Only this inner container scrolls when your logs list is long */}
-        <main className="flex-1 p-6">{children}</main>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            style={{ backgroundColor: '#2563EB' }}
+            className="h-[42px] flex items-center justify-center gap-2 hover:bg-blue-700 text-white text-sm font-semibold px-5 rounded-xl shadow-xs transition-all cursor-pointer shrink-0 box-border"
+          >
+            <Plus className="w-4 h-4" /> New Log Entry
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile search bar sub-header */}
+      <div className="xl:hidden p-3 bg-white border-b border-blue-100 shrink-0 w-full">
+        <input
+          type="text"
+          value={currentSearch}
+          onChange={handleSearchChange}
+          placeholder="Search logs, attributes, or tags..."
+          style={{ fontSize: '16px' }}
+          className="w-full bg-blue-50/30 border border-blue-100 rounded-xl px-3.5 py-2 text-sm text-gray-900 focus:bg-white focus:outline-none focus:border-blue-500"
+        />
+      </div>
+
+      {/* Backdrop for mobile/iPad drawer */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/20 backdrop-blur-xs z-40 xl:hidden transition-opacity"
+        />
+      )}
+
+      {/* 2. Content Area Beneath Header (Sidebar + Main Workspace) */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Sidebar Navigation Drawer (Starts underneath header) */}
+        <div
+          className={`fixed xl:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-blue-100 flex flex-col transition-transform duration-300 ease-in-out h-full ${
+            sidebarOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full xl:translate-x-0'
+          }`}
+          onClick={() => {
+            if (window.innerWidth < 1280) setSidebarOpen(false);
+          }}
+        >
+          <Sidebar userName={userName} />
+        </div>
+
+        {/* Main Workspace */}
+        <main className="flex-1 p-3 sm:p-6 overflow-y-auto [-webkit-overflow-scrolling:touch]">
+          {children}
+        </main>
       </div>
 
       <LogModal

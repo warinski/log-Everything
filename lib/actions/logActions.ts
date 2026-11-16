@@ -22,26 +22,23 @@ export async function createLog(data: CreateLogInput) {
   try {
     await dbConnect();
 
-    let categoryName = data.categoryName || '';
     let categoryIcon = data.categoryIcon || '';
     let categoryColor = data.categoryColor || '';
 
-    // If a categoryId is provided, double-check or fallback to fetching from DB
     if (data.categoryId) {
       const category = await Category.findById(data.categoryId);
       if (category) {
-        categoryName = category.name || categoryName;
-        categoryIcon = category.icon || categoryIcon;
-        categoryColor = category.color || categoryColor;
+        categoryIcon = category.icon || '';
+        categoryColor = category.color || '';
       }
     }
 
     const newLog = await Log.create({
       userId: data.userId,
       categoryId: data.categoryId || undefined,
-      categoryName: categoryName || undefined,
-      categoryIcon: categoryIcon || undefined,
-      categoryColor: categoryColor || undefined,
+      categoryName: data.categoryName || undefined,
+      categoryIcon,
+      categoryColor,
       title: data.title,
       notes: data.notes || '',
       tags: data.tags || [],
@@ -61,16 +58,14 @@ export async function updateLog(logId: string, userId: string, data: Partial<Cre
   try {
     await dbConnect();
 
-    let categoryName = data.categoryName;
     let categoryIcon = data.categoryIcon;
     let categoryColor = data.categoryColor;
 
     if (data.categoryId) {
       const category = await Category.findById(data.categoryId);
       if (category) {
-        categoryName = category.name || categoryName;
-        categoryIcon = category.icon || categoryIcon;
-        categoryColor = category.color || categoryColor;
+        categoryIcon = category.icon || '';
+        categoryColor = category.color || '';
       }
     }
 
@@ -78,7 +73,6 @@ export async function updateLog(logId: string, userId: string, data: Partial<Cre
       { _id: logId, userId },
       {
         ...data,
-        ...(categoryName !== undefined && { categoryName }),
         ...(categoryIcon !== undefined && { categoryIcon }),
         ...(categoryColor !== undefined && { categoryColor }),
       },
@@ -94,6 +88,41 @@ export async function updateLog(logId: string, userId: string, data: Partial<Cre
   } catch (error: any) {
     console.error('Error updating log:', error);
     throw new Error(error.message || 'Failed to update log.');
+  }
+}
+
+/**
+ * Duplicate an existing log entry by ID
+ */
+export async function duplicateLog(logId: string, userId: string) {
+  try {
+    await dbConnect();
+
+    const sourceLog = await Log.findById(logId).lean();
+    if (!sourceLog) {
+      throw new Error('Log not found.');
+    }
+
+    const duplicatedData = {
+      userId: sourceLog.userId || userId, // Fallback to passed userId if sourceLog.userId is missing
+      categoryId: sourceLog.categoryId || undefined,
+      categoryName: (sourceLog as any).categoryName || '',
+      categoryIcon: (sourceLog as any).categoryIcon || '',
+      categoryColor: (sourceLog as any).categoryColor || '',
+      title: `Copy of ${sourceLog.title}`,
+      notes: sourceLog.notes || '',
+      tags: sourceLog.tags || [],
+      attributes: sourceLog.attributes || {},
+      timestamp: new Date(),
+    };
+
+    const newLog = await Log.create(duplicatedData);
+
+    revalidatePath('/dashboard');
+    return JSON.parse(JSON.stringify(newLog));
+  } catch (error: any) {
+    console.error('Error duplicating log:', error);
+    throw new Error(error.message || 'Failed to duplicate log.');
   }
 }
 
@@ -121,42 +150,16 @@ export async function getFilteredLogs({
       query.tags = { $all: tags };
     }
 
-    // Fetch logs matching basic filters first, sorted with latest timestamp/creation first
-    const logs = await Log.find(query)
-      .sort({ timestamp: -1, createdAt: -1 })
-      .lean();
-
-    // If there is a search query, filter in-memory to guarantee exact matching
-    // across title, notes, tags, categoryName, AND all dynamic attributes (keys and values)
-    if (!searchQuery || searchQuery.trim() === '') {
-      return JSON.parse(JSON.stringify(logs));
+    if (searchQuery) {
+      query.$or = [
+        { title: { $regex: searchQuery, $options: 'i' } },
+        { notes: { $regex: searchQuery, $options: 'i' } },
+        { tags: { $regex: searchQuery, $options: 'i' } },
+      ];
     }
 
-    const q = searchQuery.toLowerCase();
-
-    const filteredLogs = logs.filter((log: any) => {
-      // 1. Check title
-      if (log.title && log.title.toLowerCase().includes(q)) return true;
-
-      // 2. Check notes
-      if (log.notes && log.notes.toLowerCase().includes(q)) return true;
-
-      // 3. Check categoryName
-      if (log.categoryName && log.categoryName.toLowerCase().includes(q)) return true;
-
-      // 4. Check tags array
-      if (log.tags && log.tags.some((tag: string) => tag.toLowerCase().includes(q))) return true;
-
-      // 5. Check dynamic attributes (both keys and values)
-      if (log.attributes && typeof log.attributes === 'object') {
-        const attributeString = JSON.stringify(log.attributes).toLowerCase();
-        if (attributeString.includes(q)) return true;
-      }
-
-      return false;
-    });
-
-    return JSON.parse(JSON.stringify(filteredLogs));
+    const logs = await Log.find(query).sort({ timestamp: -1 }).lean();
+    return JSON.parse(JSON.stringify(logs));
   } catch (error: any) {
     console.error('Error fetching filtered logs:', error);
     return [];

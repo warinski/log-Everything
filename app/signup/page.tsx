@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
-import { Layers3 } from 'lucide-react'; // 👈 Imported logo icon
+import { Layers3 } from 'lucide-react';
 import { registerUser } from '@/lib/actions/authActions';
 
 export default function SignupPage() {
@@ -46,7 +46,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-6">
         
-        {/* 👈 LoggerLogger Branding Header */}
+        {/* LoggerLogger Branding Header */}
         <div className="flex items-center gap-3 pb-2 border-b border-gray-100">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
             <Layers3 className="w-6 h-6 text-white" />
@@ -57,8 +57,10 @@ export default function SignupPage() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Create an Account</h1>
-          <p className="text-sm text-gray-500 mt-1">Get started with your secure logging dashboard.</p>
+          {/* 👈 Reduced header size to match login page */}
+          <h1 className="text-xl font-bold tracking-tight text-gray-900">Create an Account</h1>
+          {/* 👈 Reduced caption size to match login page */}
+          <p className="text-xs text-gray-500 mt-1">Get started with your secure logging dashboard.</p>
         </div>
 
         {error && (
@@ -75,7 +77,7 @@ export default function SignupPage() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-900 bg-white"
               placeholder="John Doe"
             />
           </div>
@@ -87,7 +89,7 @@ export default function SignupPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-900 bg-white"
               placeholder="you@example.com"
             />
           </div>
@@ -99,7 +101,7 @@ export default function SignupPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-900 bg-white"
               placeholder="••••••••"
             />
           </div>
@@ -107,7 +109,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm cursor-pointer"
+            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
           >
             {isLoading ? 'Creating Account...' : 'Sign Up'}
           </button>

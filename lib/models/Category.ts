@@ -1,9 +1,9 @@
 import { Schema, model, models, Document } from 'mongoose';
 
 export interface IFieldDefinition {
-  name: string; // Internal key (e.g., "distance_km")
-  label: string; // Display label (e.g., "Distance (km)")
-  fieldType: 'text' | 'number' | 'date' | 'select' | 'boolean';
+  name: string; // Internal key (e.g., "expense_amount")
+  label: string; // Display label (e.g., "Total Cost")
+  fieldType: 'text' | 'number' | 'date' | 'select' | 'boolean' | 'checkbox' | 'time' | 'currency'; // 👈 Added 'time' & 'currency'
   options?: string[]; // Options if fieldType is 'select'
   required: boolean;
 }
@@ -24,7 +24,7 @@ const FieldDefinitionSchema = new Schema<IFieldDefinition>({
   label: { type: String, required: true },
   fieldType: { 
     type: String, 
-    enum: ['text', 'number', 'date', 'select', 'boolean'], 
+    enum: ['text', 'number', 'date', 'select', 'boolean', 'checkbox', 'time', 'currency'], // 👈 Added 'time' & 'currency'
     required: true 
   },
   options: [{ type: String }],
@@ -43,7 +43,6 @@ const CategorySchema = new Schema<ICategory>(
   { timestamps: true }
 );
 
-// Ensures a user cannot create duplicate category names
 CategorySchema.index({ userId: 1, name: 1 }, { unique: true });
 
 export const Category = models.Category || model<ICategory>('Category', CategorySchema);
