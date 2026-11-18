@@ -16,32 +16,29 @@ export default function Sidebar({ userName }: SidebarProps) {
     { name: 'Logs Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Insights & Analytics', href: '/dashboard/analytics', icon: BarChart3 },
     { name: 'Categories & Templates', href: '/dashboard/categories', icon: FolderKanban },
-    { name: 'Tags Management', href: '/dashboard/tags', icon: Tags },    
+    // { name: 'Tags Management', href: '/dashboard/tags', icon: Tags },    
   ];
 
   return (
     <aside className="w-full md:w-64 bg-white border-r border-blue-100 flex flex-col justify-between shrink-0 h-full">
       {/* Navigation Links with Active Highlighting */}
-      <nav className="p-4 space-y-1.5 mt-2">
+      <nav className="space-y-1.5 px-3 pt-4">
         {navItems.map((item) => {
-          const Icon = item.icon;
           const isActive = pathname === item.href;
-
           return (
             <Link
-              key={item.href}
+              key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all cursor-pointer ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all ${
                 isActive
-                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-2xs border border-blue-100/80'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-blue-50 text-blue-600 font-semibold shadow-xs'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-              <span>{item.name}</span>
-              {isActive && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-              )}
+              <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+              <span className="text-sm whitespace-nowrap tracking-tight">
+                {item.name}
+              </span>
             </Link>
           );
         })}

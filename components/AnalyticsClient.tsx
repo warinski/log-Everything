@@ -15,6 +15,7 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getFilteredLogs } from '@/lib/actions/logActions';
@@ -45,6 +46,9 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const rowsPerPage = 10;
+
+  // Selected row state for highlighting
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
   // Column Width state for resizable table columns
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -541,7 +545,7 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
       {/* Header & Export Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">Insights & Analytics</h1>
+          <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">Insights & Analytics</h1>
         </div>
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -569,68 +573,122 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         </div>
       </div>
 
-      {/* Filter & Scope Bar */}
-      <div className="bg-white border border-blue-100 rounded-2xl p-3 sm:p-4 shadow-2xs grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
-            <Filter className="w-3 h-3" /> Category Scope
-          </label>
-          <select
-            value={selectedCategory}
-            onChange={(e) => {
-              setSelectedCategory(e.target.value);
-              setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
-            }}
-            style={{ fontSize: '16px' }}
-            className="w-full px-3 py-2 bg-blue-50/30 border border-blue-100 rounded-xl text-gray-800 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer text-xs sm:text-sm"
-          >
-            <option value="">All Categories (Cross-Category)</option>
-            {categories.map((cat) => (
-              <option key={cat._id} value={cat._id}>
-                {cat.icon ? `${cat.icon} ${cat.name}` : cat.name}
-              </option>
-            ))}
-          </select>
+      {/* Filter & Scope Bar (1/3 width for Dates, 2/3 width for Category Scope & Filter Records) */}
+      <div className="bg-white border border-blue-100 rounded-2xl p-3 sm:p-4 shadow-2xs grid grid-cols-1 lg:grid-cols-12 gap-3 shrink-0 box-border items-center">
+        
+        {/* Category Scope & Filter Records (Takes 8/12 cols = 2/3 width) */}
+        <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+          <div className="min-w-0 flex flex-col justify-center">
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 truncate shrink-0">
+              Category Scope
+            </label>
+            <div className="relative flex items-center w-full h-11 bg-blue-50/30 border border-blue-100 rounded-xl px-3 focus-within:bg-white focus-within:border-blue-500 box-border">
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
+                }}
+                style={{ fontSize: '16px' }}
+                className="w-full bg-transparent text-gray-800 focus:outline-none cursor-pointer text-xs sm:text-sm appearance-none border-none shadow-none m-0 p-0 pr-8 truncate"
+              >
+                <option value="">All Categories (Cross-Category)</option>
+                {categories.map((cat) => (
+                  <option key={cat._id} value={cat._id}>
+                    {cat.icon ? `${cat.icon} ${cat.name}` : cat.name}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 pointer-events-none text-gray-400 flex items-center">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+
+          <div className="min-w-0 flex flex-col justify-center">
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 truncate shrink-0">
+              Filter Records
+            </label>
+            <div className="relative flex items-center w-full h-11 bg-blue-50/30 border border-blue-100 rounded-xl px-3.5 focus-within:bg-white focus-within:border-blue-500 box-border">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Title, tags, attributes..."
+                style={{ fontSize: '16px' }}
+                className="w-full bg-transparent text-gray-900 focus:outline-none text-xs sm:text-sm border-none shadow-none m-0 p-0"
+              />
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
-            <Search className="w-3 h-3" /> Filter Records
-          </label>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Title, tags, attributes..."
-            style={{ fontSize: '16px' }}
-            className="w-full px-3 py-2 bg-blue-50/30 border border-blue-100 rounded-xl text-gray-900 focus:bg-white focus:outline-none focus:border-blue-500 text-xs sm:text-sm"
-          />
-        </div>
+        {/* From Date & To Date (Takes 4/12 cols = 1/3 width, forced smaller inline font size) */}
+        <div className="lg:col-span-4 grid grid-cols-2 gap-2 min-w-0 box-border">
+          <div className="min-w-0 flex flex-col justify-center">
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 truncate shrink-0">
+              From Date
+            </label>
+            <div className="relative flex items-center w-full h-11 bg-blue-50/30 border border-blue-100 rounded-xl px-2.5 focus-within:bg-white focus-within:border-blue-500 box-border overflow-hidden">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                onClick={(e) => {
+                  try {
+                    (e.target as HTMLInputElement).showPicker?.();
+                  } catch (err) {}
+                }}
+                style={{
+                  fontSize: '14px',
+                  colorScheme: 'light',
+                }}
+                className={`w-full bg-transparent text-gray-800 focus:outline-none tracking-tight border-none shadow-none m-0 p-0 block truncate ${dateFrom ? 'pr-6' : 'pr-1'} [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden`}
+              />
+              {dateFrom && (
+                <button
+                  type="button"
+                  onClick={() => setDateFrom('')}
+                  className="absolute right-2 text-gray-400 hover:text-gray-600 text-sm font-bold cursor-pointer p-1 z-10 bg-transparent"
+                  aria-label="Clear date"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
-            From Date
-          </label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            style={{ fontSize: '16px' }}
-            className="w-full px-3 py-2 bg-blue-50/30 border border-blue-100 rounded-xl text-gray-800 focus:bg-white focus:outline-none focus:border-blue-500 text-xs sm:text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
-            To Date
-          </label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            style={{ fontSize: '16px' }}
-            className="w-full px-3 py-2 bg-blue-50/30 border border-blue-100 rounded-xl text-gray-800 focus:bg-white focus:outline-none focus:border-blue-500 text-xs sm:text-sm"
-          />
+          <div className="min-w-0 flex flex-col justify-center">
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 truncate shrink-0">
+              To Date
+            </label>
+            <div className="relative flex items-center w-full h-11 bg-blue-50/30 border border-blue-100 rounded-xl px-2.5 focus-within:bg-white focus-within:border-blue-500 box-border overflow-hidden">
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                onClick={(e) => {
+                  try {
+                    (e.target as HTMLInputElement).showPicker?.();
+                  } catch (err) {}
+                }}
+                style={{
+                  fontSize: '14px',
+                  colorScheme: 'light',
+                }}
+                className={`w-full bg-transparent text-gray-800 focus:outline-none tracking-tight border-none shadow-none m-0 p-0 block truncate ${dateTo ? 'pr-6' : 'pr-1'} [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden`}
+              />
+              {dateTo && (
+                <button
+                  type="button"
+                  onClick={() => setDateTo('')}
+                  className="absolute right-2 text-gray-400 hover:text-gray-600 text-sm font-bold cursor-pointer p-1 z-10 bg-transparent"
+                  aria-label="Clear date"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -734,19 +792,19 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
             )}
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
               disabled={currentPage === 1}
-              className="p-2 rounded-xl border border-blue-200 bg-white text-gray-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+              className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
               aria-label="Previous Page"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="p-2 rounded-xl border border-blue-200 bg-white text-gray-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+              className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
               aria-label="Next Page"
             >
               <ChevronRight className="w-4 h-4" />
@@ -754,147 +812,165 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="p-12 text-center text-sm text-gray-400">Loading analytics table...</div>
-        ) : sortedLogs.length === 0 ? (
-          <div className="p-12 text-center text-sm text-gray-500">
-            No log records match your current filter selection.
-          </div>
-        ) : (
-          <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
-            <table className="w-full text-left border-collapse table-fixed min-w-[700px]">
-              <thead className="bg-gray-50">
-                <tr className="border-b border-blue-100 text-xs font-bold text-gray-600 uppercase tracking-wider">
-                  {!selectedCategory && (
-                    <th
-                      style={{ width: columnWidths['category'] || 150 }}
-                      className="py-3 px-3 sm:px-4 relative select-none whitespace-nowrap border-r-2 border-blue-200"
-                    >
-                      <div
-                        onClick={(e) => handleSort('category', e)}
-                        className="flex items-center justify-between gap-1.5 cursor-pointer hover:text-blue-600 transition-colors pr-1"
-                      >
-                        <span className="truncate">Category</span>
-                        {renderSortIcon('category')}
-                      </div>
-                      <div
-                        onMouseDown={(e) => handleResizeMouseDown('category', e)}
-                        className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 hover:bg-blue-400/30"
-                        title="Drag to resize column"
-                      />
-                    </th>
-                  )}
-
+        {/* Scrollable Table Content */}
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-blue-100 bg-blue-50/40 text-gray-600 uppercase text-[11px] font-bold tracking-wider">
+                {!selectedCategory && (
                   <th
-                    style={{ width: columnWidths['title'] || 200 }}
-                    className="py-3 px-3 sm:px-4 relative select-none whitespace-nowrap border-r-2 border-blue-200"
+                    style={{ width: columnWidths['category'] || 160 }}
+                    className="relative px-4 py-3 select-none group"
                   >
                     <div
-                      onClick={(e) => handleSort('title', e)}
-                      className="flex items-center justify-between gap-1.5 cursor-pointer hover:text-blue-600 transition-colors pr-1"
+                      onClick={(e) => handleSort('category', e)}
+                      className="flex items-center justify-between cursor-pointer"
                     >
-                      <span className="truncate">Title</span>
-                      {renderSortIcon('title')}
+                      <span>Category</span>
+                      {renderSortIcon('category')}
                     </div>
                     <div
-                      onMouseDown={(e) => handleResizeMouseDown('title', e)}
-                      className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 hover:bg-blue-400/30"
-                      title="Drag to resize column"
+                      onMouseDown={(e) => handleResizeMouseDown('category', e)}
+                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 transition-colors"
                     />
                   </th>
+                )}
 
-                  {dynamicColumns.map((col) => (
-                    <th
-                      key={col.key}
-                      style={{ width: columnWidths[col.key] || 160 }}
-                      className="py-3 px-3 sm:px-4 relative select-none whitespace-nowrap border-r-2 border-blue-200"
-                    >
-                      <div
-                        onClick={(e) => handleSort(col.key, e)}
-                        className="flex items-center justify-between gap-1.5 cursor-pointer hover:text-blue-600 transition-colors pr-1"
-                      >
-                        <span className="truncate">{col.label}</span>
-                        {renderSortIcon(col.key)}
-                      </div>
-                      <div
-                        onMouseDown={(e) => handleResizeMouseDown(col.key, e)}
-                        className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 hover:bg-blue-400/30"
-                        title="Drag to resize column"
-                      />
-                    </th>
-                  ))}
-
-                  <th
-                    style={{ width: columnWidths['tags'] || 150 }}
-                    className="py-3 px-3 sm:px-4 relative select-none whitespace-nowrap border-r-2 border-blue-200 text-gray-500 font-semibold"
+                <th
+                  style={{ width: columnWidths['title'] || 180 }}
+                  className="relative px-4 py-3 select-none group"
+                >
+                  <div
+                    onClick={(e) => handleSort('title', e)}
+                    className="flex items-center justify-between cursor-pointer"
                   >
-                    <span className="truncate">Tags</span>
-                  </th>
+                    <span>Title</span>
+                    {renderSortIcon('title')}
+                  </div>
+                  <div
+                    onMouseDown={(e) => handleResizeMouseDown('title', e)}
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 transition-colors"
+                  />
+                </th>
 
+                {dynamicColumns.map((col) => (
                   <th
-                    style={{ width: columnWidths['notes'] || 200 }}
-                    className="py-3 px-3 sm:px-4 relative select-none whitespace-nowrap border-r-2 border-blue-200 text-gray-500 font-semibold"
-                  >
-                    <span className="truncate">Notes</span>
-                  </th>
-
-                  <th
-                    style={{ width: columnWidths['timestamp'] || 180 }}
-                    className="py-3 px-3 sm:px-4 relative select-none whitespace-nowrap"
+                    key={col.key}
+                    style={{ width: columnWidths[col.key] || 150 }}
+                    className="relative px-4 py-3 select-none group"
                   >
                     <div
-                      onClick={(e) => handleSort('timestamp', e)}
-                      className="flex items-center justify-between gap-1.5 cursor-pointer hover:text-blue-600 transition-colors pr-1"
+                      onClick={(e) => handleSort(col.key, e)}
+                      className="flex items-center justify-between cursor-pointer"
                     >
-                      <span className="truncate">Last Modified</span>
-                      {renderSortIcon('timestamp')}
+                      <span className="truncate">{col.label}</span>
+                      {renderSortIcon(col.key)}
                     </div>
+                    <div
+                      onMouseDown={(e) => handleResizeMouseDown(col.key, e)}
+                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 transition-colors"
+                    />
                   </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-blue-50 text-xs text-gray-700">
-                {paginatedLogs.map((log: any) => (
-                  <tr key={log._id} className="hover:bg-blue-50/30 transition-colors">
-                    {!selectedCategory && (
-                      <td className="py-3 px-3 sm:px-4 truncate border-r border-blue-50" style={{ maxWidth: columnWidths['category'] || 150 }}>
-                        <span className="font-semibold text-gray-900 truncate block">
-                          {log.categoryName || 'General'}
-                        </span>
-                      </td>
-                    )}
-
-                    <td className="py-3 px-3 sm:px-4 truncate border-r border-blue-50" style={{ maxWidth: columnWidths['title'] || 200 }}>
-                      <span className="font-bold text-gray-900 truncate block">{log.title}</span>
-                    </td>
-
-                    {dynamicColumns.map((col) => {
-                      const val = log.attributes?.[col.key];
-                      return (
-                        <td key={col.key} className="py-3 px-3 sm:px-4 truncate border-r border-blue-50" style={{ maxWidth: columnWidths[col.key] || 160 }}>
-                          <span className="truncate block">
-                            {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val ?? ''}
-                          </span>
-                        </td>
-                      );
-                    })}
-
-                    <td className="py-3 px-3 sm:px-4 truncate border-r border-blue-50 text-gray-500" style={{ maxWidth: columnWidths['tags'] || 150 }}>
-                      <span className="truncate block">{(log.tags || []).map((t: string) => `#${t}`).join(', ')}</span>
-                    </td>
-
-                    <td className="py-3 px-3 sm:px-4 truncate border-r border-blue-50 text-gray-500" style={{ maxWidth: columnWidths['notes'] || 200 }}>
-                      <span className="truncate block">{log.notes || ''}</span>
-                    </td>
-
-                    <td className="py-3 px-3 sm:px-4 whitespace-nowrap text-gray-500 font-medium">
-                      {getLogTimestamp(log).toLocaleString()}
-                    </td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+
+                <th
+                  style={{ width: columnWidths['tags'] || 140 }}
+                  className="relative px-4 py-3 select-none group"
+                >
+                  <div
+                    onClick={(e) => handleSort('tags', e)}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <span>Tags</span>
+                    {renderSortIcon('tags')}
+                  </div>
+                  <div
+                    onMouseDown={(e) => handleResizeMouseDown('tags', e)}
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 transition-colors"
+                  />
+                </th>
+
+                <th
+                  style={{ width: columnWidths['timestamp'] || 180 }}
+                  className="relative px-4 py-3 select-none group"
+                >
+                  <div
+                    onClick={(e) => handleSort('timestamp', e)}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <span>Last Modified</span>
+                    {renderSortIcon('timestamp')}
+                  </div>
+                  <div
+                    onMouseDown={(e) => handleResizeMouseDown('timestamp', e)}
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 transition-colors"
+                  />
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-blue-50 bg-white">
+              {paginatedLogs.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={(!selectedCategory ? 1 : 0) + 2 + dynamicColumns.length + 1}
+                    className="px-6 py-12 text-center text-sm text-gray-400"
+                  >
+                    No matching records found.
+                  </td>
+                </tr>
+              ) : (
+                paginatedLogs.map((log: any) => {
+                  const isSelected = selectedRowId === log._id;
+                  return (
+                    <tr
+                      key={log._id}
+                      onClick={() => setSelectedRowId(isSelected ? null : log._id)}
+                      className={`cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-blue-100/70 border-blue-200'
+                          : 'hover:bg-blue-50/40'
+                      }`}
+                    >
+                      {!selectedCategory && (
+                        <td className="px-4 py-3 text-xs sm:text-sm text-gray-700 truncate">
+                          {log.categoryName || 'General'}
+                        </td>
+                      )}
+                      <td className="px-4 py-3 text-xs sm:text-sm font-medium text-gray-900 truncate">
+                        {log.title}
+                      </td>
+                      {dynamicColumns.map((col) => {
+                        const val = log.attributes?.[col.key];
+                        let displayVal = val ?? '';
+                        if (typeof val === 'boolean') {
+                          displayVal = val ? 'Yes' : 'No';
+                        }
+                        return (
+                          <td key={col.key} className="px-4 py-3 text-xs sm:text-sm text-gray-700 truncate">
+                            {String(displayVal)}
+                          </td>
+                        );
+                      })}
+                      <td className="px-4 py-3 text-xs sm:text-sm text-gray-500 truncate">
+                        {(log.tags || []).join(', ')}
+                      </td>
+                      <td className="px-4 py-3 text-xs sm:text-sm text-gray-400 whitespace-nowrap">
+                        {getLogTimestamp(log).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

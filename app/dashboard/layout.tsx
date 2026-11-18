@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { Suspense } from 'react';
 import DashboardLayoutClient from '@/components/DashboardLayoutClient';
+import dbConnect from '@/lib/mongodb';
+import { User } from '@/lib/models/User';
 
 async function DashboardContent({ children }: { children: React.ReactNode }) {
   headers(); // Request-bound header check
@@ -13,7 +15,11 @@ async function DashboardContent({ children }: { children: React.ReactNode }) {
   }
 
   const userId = (session.user as any).id;
-  const userName = session.user.name || 'User';
+
+  // 🔍 Fetch live user details directly from MongoDB to ensure updated name reflects instantly
+  await dbConnect();
+  const dbUser = await User.findById(userId).lean();
+  const userName = dbUser?.name || session.user.name || 'User';
 
   return (
     <DashboardLayoutClient userId={userId} userName={userName}>

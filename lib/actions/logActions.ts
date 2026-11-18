@@ -180,3 +180,35 @@ export async function deleteLog(logId: string, userId: string) {
     throw new Error(error.message || 'Failed to delete log.');
   }
 }
+
+/**
+ * Updates all logs referencing a specific category when the category template is renamed or restyled.
+ */
+export async function updateCategoryNameInLogs(
+  categoryId: string,
+  newCategoryName: string,
+  newCategoryIcon?: string,
+  newCategoryColor?: string
+) {
+  try {
+    await dbConnect();
+
+    await Log.updateMany(
+      { categoryId: categoryId },
+      {
+        $set: {
+          categoryName: newCategoryName,
+          ...(newCategoryIcon !== undefined && { categoryIcon: newCategoryIcon }),
+          ...(newCategoryColor !== undefined && { categoryColor: newCategoryColor }),
+        },
+      }
+    );
+
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/analytics');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating category name in logs:', error);
+    throw new Error(error.message || 'Failed to update category name in logs.');
+  }
+}

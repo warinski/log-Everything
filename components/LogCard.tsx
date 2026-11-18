@@ -14,24 +14,24 @@ export interface LogItem {
   title: string;
   tags?: string[];
   timestamp?: string | Date;
-  loggedAt?: string | Date; // 👈 Support both schema names
+  loggedAt?: string | Date;
   notes?: string;
   attributes?: Record<string, any>;
 }
 
 interface LogCardProps {
   log: LogItem;
-  userId: string; // 👈 Added userId required for duplication
+  userId: string;
+  categories?: any[];
   onEdit: (log: LogItem) => void;
   onDelete: (id: string) => void;
   onTagClick: (tag: string) => void;
   onSuccess?: () => void;
 }
 
-export default function LogCard({ log, userId, onEdit, onDelete, onTagClick, onSuccess }: LogCardProps) {
+export default function LogCard({ log, userId, categories = [], onEdit, onDelete, onTagClick, onSuccess }: LogCardProps) {
   const [isDuplicating, setIsDuplicating] = useState(false);
 
-  // Check both timestamp and loggedAt so it never fails to display
   const dateValue = log.timestamp || log.loggedAt;
   const formattedDate = dateValue 
     ? new Date(dateValue).toLocaleString(undefined, {
@@ -94,7 +94,6 @@ export default function LogCard({ log, userId, onEdit, onDelete, onTagClick, onS
             )}
           </div>
 
-          {/* Title given maximum width and flex-1 behavior so it uses all available space */}
           <h3 className="text-sm sm:text-base font-bold text-gray-900 pt-0.5 w-full truncate">
             {log.title}
           </h3>
@@ -102,7 +101,6 @@ export default function LogCard({ log, userId, onEdit, onDelete, onTagClick, onS
 
         {/* Action Buttons */}
         <div className="flex items-center gap-0.5 shrink-0 ml-1">
-          {/* Duplicate Button */}
           <button
             onClick={handleDuplicateClick}
             disabled={isDuplicating}
@@ -111,8 +109,6 @@ export default function LogCard({ log, userId, onEdit, onDelete, onTagClick, onS
           >
             <Copy className="w-4 h-4" />
           </button>
-
-          {/* Edit Button */}
           <button
             onClick={() => onEdit(log)}
             className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
@@ -120,8 +116,6 @@ export default function LogCard({ log, userId, onEdit, onDelete, onTagClick, onS
           >
             <Pencil className="w-4 h-4" />
           </button>
-
-          {/* Delete Button with Confirmation */}
           <button
             onClick={handleDeleteClick}
             className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
@@ -135,12 +129,21 @@ export default function LogCard({ log, userId, onEdit, onDelete, onTagClick, onS
       {/* Dynamic Attributes Grid */}
       {log.attributes && Object.keys(log.attributes).length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 py-2 px-2.5 sm:px-3 bg-blue-50/30 rounded-xl border border-blue-100/50 text-xs">
-          {Object.entries(log.attributes).map(([key, value]) => (
-            <div key={key} className="min-w-0">
-              <span className="text-blue-400 block uppercase text-[10px] truncate">{key.replace(/_/g, ' ')}</span>
-              <span className="font-semibold text-gray-700 truncate block">{String(value)}</span>
-            </div>
-          ))}
+          {Object.entries(log.attributes).map(([key, value]) => {
+            // Capitalize and format the database key directly (e.g. 'qwerty' -> 'Qwerty')
+            const displayLabel = key
+              .replace(/([A-Z])/g, ' $1')
+              .replace(/_/g, ' ')
+              .trim()
+              .replace(/\b\w/g, (l) => l.toUpperCase());
+
+            return (
+              <div key={key} className="min-w-0">
+                <span className="text-blue-400 block uppercase text-[10px] truncate">{displayLabel}</span>
+                <span className="font-semibold text-gray-700 truncate block">{String(value)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 

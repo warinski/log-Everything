@@ -1,34 +1,44 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import FilterBar from '@/components/FilterBar';
 import LogCard, { LogItem } from '@/components/LogCard';
-import LogModal from '@/components/LogModal';
+import LogModal, { CategoryTemplate } from '@/components/LogModal';
 import { getFilteredLogs, deleteLog, createLog, updateLog } from '@/lib/actions/logActions';
 import { getUserCategories, createCategory } from '@/lib/actions/categoryActions';
 
 interface DashboardClientProps {
   userId: string;
   userName?: string | null;
+  initialCategories?: CategoryTemplate[];
 }
 
-export default function DashboardClient({ userId }: DashboardClientProps) {
+export default function DashboardClient({ userId, initialCategories = [] }: DashboardClientProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const urlSearchQuery = searchParams.get('search') || '';
 
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryTemplate[]>(initialCategories);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Edit and Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<LogItem | null>(null);
 
   const activeSearch = searchQuery || urlSearchQuery;
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const fetchedCats = await getUserCategories(userId);
+      setCategories(fetchedCats || []);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  }, [userId]);
 
   const loadData = useCallback(async () => {
     try {
@@ -43,8 +53,8 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
         }),
       ]);
       
-      setCategories(fetchedCats);
-      setLogs(fetchedLogs);
+      setCategories(fetchedCats || []);
+      setLogs(fetchedLogs || []);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -56,6 +66,7 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
     loadData();
 
     const handleDataRefresh = () => {
+      loadCategories();
       loadData();
     };
 
@@ -75,7 +86,7 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
       window.removeEventListener('categoryCreated', handleDataRefresh);
       window.removeEventListener('editLog', handleEditLogEvent as EventListener);
     };
-  }, [loadData]);
+  }, [loadData, loadCategories]);
 
   const handleSaveLog = async (payload: any, isEditing: boolean, logId?: string) => {
     if (isEditing && logId) {
@@ -83,12 +94,32 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
     } else {
       await createLog({ ...payload, userId });
     }
+    router.refresh();
     loadData();
   };
 
   const handleCreateCategory = async (catData: any) => {
-    await createCategory(catData);
+    const result = await createCategory(catData);
+    
+    if (result && result.categoryId) {
+      const newCatObj: CategoryTemplate = {
+        _id: result.categoryId,
+        name: catData.name,
+        icon: catData.icon || '📁',
+        color: catData.color || '#3B82F6',
+        fields: catData.fields || [],
+      };
+      setCategories((prev) => {
+        if (prev.some((c) => c._id === result.categoryId)) return prev;
+        return [...prev, newCatObj].sort((a, b) => a.name.localeCompare(b.name));
+      });
+    }
+
+    window.dispatchEvent(new CustomEvent('categoryCreated'));
+    router.refresh();
+    await loadCategories();
     loadData();
+    return result;
   };
 
   const addTagFilter = (tag: string) => {
@@ -125,7 +156,7 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 flex flex-col h-[calc(100vh-5rem)] sm:h-[calc(100vh-7rem)] px-2 sm:px-4">
       <div className="shrink-0 space-y-3 sm:space-y-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">Activity Timeline</h1>
+          <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">Activity Timeline</h1>
         </div>
 
         <FilterBar
@@ -149,15 +180,22 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
           <div className="bg-white border border-blue-100 rounded-2xl p-12 text-center text-sm text-gray-400 shadow-2xs">Loading logs from database...</div>
         ) : logs.length > 0 ? (
           <div className="space-y-3 sm:space-y-4 pb-6">
-            {logs.map((log) => (
-              <LogCard 
-                key={log._id} 
-                log={log} 
-                onEdit={(item) => setEditingLog(item)} 
-                onDelete={handleDeleteLog} 
-                onTagClick={addTagFilter} 
-              />
-            ))}
+            {logs
+              .slice()
+              .sort((a: any, b: any) => {
+                const dateA = new Date(a.timestamp || a.loggedAt || a.createdAt).getTime();
+                const dateB = new Date(b.timestamp || b.loggedAt || b.createdAt).getTime();
+                return dateB - dateA; // Descending order: newest first
+              })
+              .map((log) => (
+                <LogCard 
+                  key={log._id} 
+                  log={log} 
+                  onEdit={(item) => setEditingLog(item)} 
+                  onDelete={handleDeleteLog} 
+                  onTagClick={addTagFilter} 
+                />
+              ))}
           </div>
         ) : (
           <div className="bg-white border border-blue-100 rounded-2xl p-12 text-center space-y-3 shadow-2xs">
@@ -169,7 +207,6 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
         )}
       </div>
 
-      {/* Log Modal for both Creating and Editing */}
       <LogModal
         isOpen={isModalOpen || !!editingLog}
         onClose={() => {
@@ -182,6 +219,7 @@ export default function DashboardClient({ userId }: DashboardClientProps) {
         onSaveLog={handleSaveLog}
         onCreateCategory={handleCreateCategory}
         onSuccess={loadData}
+        onCategoriesRefresh={loadCategories}
       />
     </div>
   );

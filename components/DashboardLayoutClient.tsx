@@ -18,7 +18,6 @@ interface DashboardLayoutClientProps {
 function DashboardContent({ userId, userName, children }: DashboardLayoutClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentSearch = searchParams.get('search') || '';
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -67,38 +66,26 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
     router.refresh();
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    const params = new URLSearchParams(searchParams.toString());
-    
-    if (query) {
-      params.set('search', query);
-    } else {
-      params.delete('search');
-    }
-    
-    router.push(`/dashboard?${params.toString()}`);
-  };
-
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden relative">
       {/* 1. Full-Width Top Header Spanning the Entire Viewport */}
       {/* Mobile / 11" iPad Header */}
-      <header className="xl:hidden h-16 bg-white border-b border-blue-100 px-4 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-2xs w-full">
-        <div className="flex items-center gap-3">
+      <header className="xl:hidden h-14 bg-white border-b border-blue-100 px-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-2xs w-full gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-xl bg-blue-50/50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl bg-blue-50/60 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer shrink-0"
             aria-label="Toggle Navigation Menu"
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
           
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
-              <Layers3 className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm shrink-0">
+              <Layers3 className="w-4 h-4 text-white" />
             </div>
-            <span className="text-xl font-extrabold text-gray-950 tracking-tighter">
+            {/* Further increased mobile brand text size */}
+            <span className="text-lg font-extrabold text-gray-950 tracking-tighter truncate">
               Logger<span className="text-blue-600">Logger</span>
             </span>
           </div>
@@ -107,57 +94,36 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
         <button
           onClick={() => setIsModalOpen(true)}
           style={{ backgroundColor: '#2563EB' }}
-          className="flex items-center gap-1.5 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+          className="flex items-center gap-1 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-3.5 h-3.5" /> New
         </button>
       </header>
 
       {/* Desktop Full-Width Header */}
-      <header className="hidden xl:flex h-20 bg-white border-b border-blue-100 items-center justify-between px-6 shrink-0 sticky top-0 z-30 w-full shadow-2xs">
+      <header className="hidden xl:flex h-16 bg-white border-b border-blue-100 items-center justify-between px-6 shrink-0 sticky top-0 z-30 w-full shadow-2xs">
         {/* Left: Brand Logo & Text */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
-            <Layers3 className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
+            <Layers3 className="w-4 h-4 text-white" />
           </div>
+          {/* Further increased desktop brand text size */}
           <span className="text-xl font-extrabold text-gray-950 tracking-tighter">
             Logger<span className="text-blue-600">Logger</span>
           </span>
         </div>
 
-        {/* Right: Search Bar & New Log Entry Button side-by-side with matched height */}
+        {/* Right: New Log Entry Button */}
         <div className="flex items-center gap-3">
-          <div className="w-72 sm:w-80 lg:w-96">
-            <input
-              type="text"
-              value={currentSearch}
-              onChange={handleSearchChange}
-              placeholder="Search logs, attributes, or tags..."
-              className="w-full h-[42px] bg-blue-50/30 border border-blue-100 rounded-xl px-4 text-sm text-gray-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 transition-all box-border"
-            />
-          </div>
-
           <button
             onClick={() => setIsModalOpen(true)}
             style={{ backgroundColor: '#2563EB' }}
-            className="h-[42px] flex items-center justify-center gap-2 hover:bg-blue-700 text-white text-sm font-semibold px-5 rounded-xl shadow-xs transition-all cursor-pointer shrink-0 box-border"
+            className="h-9 flex items-center justify-center gap-1.5 hover:bg-blue-700 text-white text-xs font-semibold px-4 rounded-xl shadow-xs transition-all cursor-pointer shrink-0 box-border"
           >
             <Plus className="w-4 h-4" /> New Log Entry
           </button>
         </div>
       </header>
-
-      {/* Mobile search bar sub-header */}
-      <div className="xl:hidden p-3 bg-white border-b border-blue-100 shrink-0 w-full">
-        <input
-          type="text"
-          value={currentSearch}
-          onChange={handleSearchChange}
-          placeholder="Search logs, attributes, or tags..."
-          style={{ fontSize: '16px' }}
-          className="w-full bg-blue-50/30 border border-blue-100 rounded-xl px-3.5 py-2 text-sm text-gray-900 focus:bg-white focus:outline-none focus:border-blue-500"
-        />
-      </div>
 
       {/* Backdrop for mobile/iPad drawer */}
       {sidebarOpen && (
