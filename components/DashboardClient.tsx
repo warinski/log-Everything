@@ -11,16 +11,21 @@ import { getUserCategories, createCategory } from '@/lib/actions/categoryActions
 interface DashboardClientProps {
   userId: string;
   userName?: string | null;
+  initialLogs?: LogItem[];
   initialCategories?: CategoryTemplate[];
 }
 
-export default function DashboardClient({ userId, initialCategories = [] }: DashboardClientProps) {
+export default function DashboardClient({
+  userId,
+  initialLogs = [],
+  initialCategories = [],
+}: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSearchQuery = searchParams.get('search') || '';
 
   const [categories, setCategories] = useState<CategoryTemplate[]>(initialCategories);
-  const [logs, setLogs] = useState<LogItem[]>([]);
+  const [logs, setLogs] = useState<LogItem[]>(initialLogs);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,7 +57,7 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
           searchQuery: activeSearch.trim() || undefined,
         }),
       ]);
-      
+
       setCategories(fetchedCats || []);
       setLogs(fetchedLogs || []);
     } catch (error) {
@@ -61,6 +66,14 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
       setIsLoading(false);
     }
   }, [selectedCategory, selectedTags, activeSearch, userId]);
+
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
+
+  useEffect(() => {
+    setLogs(initialLogs);
+  }, [initialLogs]);
 
   useEffect(() => {
     loadData();
@@ -98,9 +111,9 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
     loadData();
   };
 
-  const handleCreateCategory = async (catData: any) => {
-    const result = await createCategory(catData);
-    
+  const handleCreateCategory = async (catData: any): Promise<void> => {
+    const result: any = await createCategory(catData);
+
     if (result && result.categoryId) {
       const newCatObj: CategoryTemplate = {
         _id: result.categoryId,
@@ -119,7 +132,6 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
     router.refresh();
     await loadCategories();
     loadData();
-    return result;
   };
 
   const addTagFilter = (tag: string) => {
@@ -136,7 +148,7 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
     setSelectedCategory('');
     setSelectedTags([]);
     setSearchQuery('');
-    
+
     if (urlSearchQuery) {
       window.history.pushState({}, '', '/dashboard');
       loadData();
@@ -177,7 +189,9 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
 
       <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 space-y-3 sm:space-y-4 min-h-0 [-webkit-overflow-scrolling:touch]">
         {isLoading ? (
-          <div className="bg-white border border-blue-100 rounded-2xl p-12 text-center text-sm text-gray-400 shadow-2xs">Loading logs from database...</div>
+          <div className="bg-white border border-blue-100 rounded-2xl p-12 text-center text-sm text-gray-400 shadow-2xs">
+            Loading logs from database...
+          </div>
         ) : logs.length > 0 ? (
           <div className="space-y-3 sm:space-y-4 pb-6">
             {logs
@@ -185,15 +199,16 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
               .sort((a: any, b: any) => {
                 const dateA = new Date(a.timestamp || a.loggedAt || a.createdAt).getTime();
                 const dateB = new Date(b.timestamp || b.loggedAt || b.createdAt).getTime();
-                return dateB - dateA; // Descending order: newest first
+                return dateB - dateA;
               })
               .map((log) => (
-                <LogCard 
-                  key={log._id} 
-                  log={log} 
-                  onEdit={(item) => setEditingLog(item)} 
-                  onDelete={handleDeleteLog} 
-                  onTagClick={addTagFilter} 
+                <LogCard
+                  key={log._id}
+                  log={log}
+                  userId={userId}
+                  onEdit={(item) => setEditingLog(item)}
+                  onDelete={handleDeleteLog}
+                  onTagClick={addTagFilter}
                 />
               ))}
           </div>
@@ -219,7 +234,6 @@ export default function DashboardClient({ userId, initialCategories = [] }: Dash
         onSaveLog={handleSaveLog}
         onCreateCategory={handleCreateCategory}
         onSuccess={loadData}
-        onCategoriesRefresh={loadCategories}
       />
     </div>
   );

@@ -46,15 +46,15 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
     };
   }, [loadCategories]);
 
-  const handleCreateCategory = async (newCatData: Record<string, unknown>) => {
+  const handleCreateCategory = async (newCatData: any) => {
     await createCategory({ ...newCatData, userId });
     await loadCategories();
     router.refresh();
   };
 
-  const handleSaveLog = async (logData: Record<string, unknown>, isEditing: boolean, logId?: string) => {
+  const handleSaveLog = async (logData: any, isEditing: boolean, logId?: string) => {
     if (isEditing && logId) {
-      await updateLog(logId, userId, logData as any);
+      await updateLog(logId, userId, logData);
     } else {
       await createLog({ ...logData, userId });
     }
@@ -79,7 +79,7 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          
+
           <div className="flex items-center gap-2 min-w-0">
             <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm shrink-0">
               <Layers3 className="w-4 h-4 text-white" />

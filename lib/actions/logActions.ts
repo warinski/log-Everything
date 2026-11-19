@@ -44,7 +44,7 @@ export async function createLog(data: CreateLogInput) {
       tags: data.tags || [],
       attributes: data.attributes || {},
       timestamp: data.timestamp || new Date(),
-    });
+    } as any);
 
     revalidatePath('/dashboard');
     return JSON.parse(JSON.stringify(newLog));
@@ -75,7 +75,7 @@ export async function updateLog(logId: string, userId: string, data: Partial<Cre
         ...data,
         ...(categoryIcon !== undefined && { categoryIcon }),
         ...(categoryColor !== undefined && { categoryColor }),
-      },
+      } as any,
       { new: true }
     );
 
@@ -98,17 +98,17 @@ export async function duplicateLog(logId: string, userId: string) {
   try {
     await dbConnect();
 
-    const sourceLog = await Log.findById(logId).lean();
+    const sourceLog = (await Log.findById(logId).lean()) as any;
     if (!sourceLog) {
       throw new Error('Log not found.');
     }
 
     const duplicatedData = {
-      userId: sourceLog.userId || userId, // Fallback to passed userId if sourceLog.userId is missing
+      userId: sourceLog.userId || userId,
       categoryId: sourceLog.categoryId || undefined,
-      categoryName: (sourceLog as any).categoryName || '',
-      categoryIcon: (sourceLog as any).categoryIcon || '',
-      categoryColor: (sourceLog as any).categoryColor || '',
+      categoryName: sourceLog.categoryName || '',
+      categoryIcon: sourceLog.categoryIcon || '',
+      categoryColor: sourceLog.categoryColor || '',
       title: `Copy of ${sourceLog.title}`,
       notes: sourceLog.notes || '',
       tags: sourceLog.tags || [],
@@ -116,7 +116,7 @@ export async function duplicateLog(logId: string, userId: string) {
       timestamp: new Date(),
     };
 
-    const newLog = await Log.create(duplicatedData);
+    const newLog = await Log.create(duplicatedData as any);
 
     revalidatePath('/dashboard');
     return JSON.parse(JSON.stringify(newLog));

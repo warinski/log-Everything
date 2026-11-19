@@ -53,8 +53,10 @@ export default function LogModal({
   const [newCatIcon, setNewCatIcon] = useState('📁');
   const [newCatColor, setNewCatColor] = useState('#3B82F6');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [newFields, setNewFields] = useState<Array<{ label: string; type: string; required: boolean; optionsString?: string; }>>([]);
-  
+  const [newFields, setNewFields] = useState<
+    Array<{ label: string; type: string; required: boolean; optionsString?: string }>
+  >([]);
+
   // User-friendly error state
   const [formError, setFormError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,9 +106,10 @@ export default function LogModal({
         label: f.label.trim(),
         fieldType: f.type,
         required: f.required,
-        options: f.type === 'select' && f.optionsString 
-          ? f.optionsString.split(',').map(o => o.trim()).filter(Boolean) 
-          : undefined,
+        options:
+          f.type === 'select' && f.optionsString
+            ? f.optionsString.split(',').map((o) => o.trim()).filter(Boolean)
+            : undefined,
       }));
 
       await onCreateCategory({
@@ -123,7 +126,7 @@ export default function LogModal({
       setNewFields([]);
       setIsCreatingCategory(false);
       setShowEmojiPicker(false);
-      
+
       window.dispatchEvent(new CustomEvent('categoryCreated'));
       onSuccess();
     } catch (err: any) {
@@ -152,10 +155,11 @@ export default function LogModal({
     if (activeCategoryTemplate?.fields && activeCategoryTemplate.fields.length > 0) {
       for (const field of activeCategoryTemplate.fields) {
         if (field.required) {
-          const fieldKey = field.name || field.label.toLowerCase().replace(/\s+/g, '_');
+          const fieldLabel = field.label || field.name || 'Field';
+          const fieldKey = field.name || fieldLabel.toLowerCase().replace(/\s+/g, '_');
           const val = dynamicAttributes[fieldKey];
           if (val === undefined || val === null || String(val).trim() === '') {
-            setFormError(`"${field.label}" is a required field.`);
+            setFormError(`"${fieldLabel}" is a required field.`);
             return;
           }
         }
@@ -278,26 +282,26 @@ export default function LogModal({
                   {showEmojiPicker && (
                     <div className="absolute left-0 mt-2 p-2 bg-white border border-blue-100 rounded-xl shadow-xl grid grid-cols-5 gap-1.5 z-30 w-64 max-h-60 overflow-y-auto">
                       {[
-                        // Original 20 emojis
-                        '📁', '💼', '🏃‍♂️', '💰', '🎯', '📚', '⚡', '💡', '🔥', '🍎', 
+                        '📁', '💼', '🏃‍♂️', '💰', '🎯', '📚', '⚡', '💡', '🔥', '🍎',
                         '💻', '🛠️', '🎨', '✈️', '🛒', '🧘‍♂️', '🚀', '⭐', '❤️', '📅',
-                        // 30 requested & diverse new emojis (5 columns layout)
                         '⛽', '💇‍♂️', '🛌', '⏰', '🧹', '🔧', '🍿', '🙏', '🍔', '💧',
-                        '💊', '☕', '🚗', '💊', '🧠', '📊', '📈', '🏠', '🎮', '🎵',
-                        '🐶', '🐱', '☀️', '🌙', '🎁', '📌', '🏋️‍♂️', '🥗', '🍻', '💊'
-                      ].filter((emoji, index, self) => self.indexOf(emoji) === index).map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => {
-                            setNewCatIcon(emoji);
-                            setShowEmojiPicker(false);
-                          }}
-                          className="h-9 flex items-center justify-center hover:bg-blue-50 rounded-lg text-xl transition-colors cursor-pointer"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
+                        '💊', '☕', '🚗', '🧠', '📊', '📈', '🏠', '🎮', '🎵',
+                        '🐶', '🐱', '☀️', '🌙', '🎁', '📌', '🏋️‍♂️', '🥗', '🍻',
+                      ]
+                        .filter((emoji, index, self) => self.indexOf(emoji) === index)
+                        .map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => {
+                              setNewCatIcon(emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            className="h-9 flex items-center justify-center hover:bg-blue-50 rounded-lg text-xl transition-colors cursor-pointer"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
                     </div>
                   )}
                 </div>
@@ -322,15 +326,22 @@ export default function LogModal({
                     onChange={(e) => setNewCatColor(e.target.value)}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   />
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border-2 border-white shadow-sm" style={{ backgroundColor: newCatColor }} />
+                  <div
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border-2 border-white shadow-sm"
+                    style={{ backgroundColor: newCatColor }}
+                  />
                 </div>
               </div>
 
               {/* Custom Fields Section */}
               <div className="space-y-3 pt-2">
                 <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">Custom Fields & Types</span>
-                  <p className="text-[11px] text-gray-500">Define the attributes you want to track for this category.</p>
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
+                    Custom Fields & Types
+                  </span>
+                  <p className="text-[11px] text-gray-500">
+                    Define the attributes you want to track for this category.
+                  </p>
                 </div>
 
                 {newFields.map((field, idx) => (
@@ -452,13 +463,14 @@ export default function LogModal({
               </span>
 
               {activeCategoryTemplate.fields.map((field: any) => {
-                const fieldKey = field.name || field.label.toLowerCase().replace(/\s+/g, '_');
+                const fieldLabel = field.label || field.name || 'Field';
+                const fieldKey = field.name || fieldLabel.toLowerCase().replace(/\s+/g, '_');
                 const fieldType = field.fieldType || field.type || 'text';
 
                 return (
                   <div key={fieldKey} className="space-y-1">
                     <label className="block text-xs font-semibold text-gray-700">
-                      {field.label} {field.required && <span className="text-red-500">*</span>}
+                      {fieldLabel} {field.required && <span className="text-red-500">*</span>}
                     </label>
 
                     {fieldType === 'checkbox' || fieldType === 'boolean' ? (
@@ -493,7 +505,15 @@ export default function LogModal({
                       </select>
                     ) : (
                       <input
-                        type={fieldType === 'number' || fieldType === 'currency' ? 'number' : fieldType === 'date' ? 'date' : fieldType === 'time' ? 'time' : 'text'}
+                        type={
+                          fieldType === 'number' || fieldType === 'currency'
+                            ? 'number'
+                            : fieldType === 'date'
+                            ? 'date'
+                            : fieldType === 'time'
+                            ? 'time'
+                            : 'text'
+                        }
                         required={field.required}
                         value={dynamicAttributes[fieldKey] !== undefined ? dynamicAttributes[fieldKey] : ''}
                         onChange={(e) => {
@@ -502,7 +522,7 @@ export default function LogModal({
                         }}
                         style={{ fontSize: '16px' }}
                         className="w-full px-3.5 py-2 bg-white border border-blue-100 rounded-xl text-xs sm:text-sm"
-                        placeholder={`Enter ${field.label.toLowerCase()}...`}
+                        placeholder={`Enter ${fieldLabel.toLowerCase()}...`}
                       />
                     )}
                   </div>
@@ -513,7 +533,9 @@ export default function LogModal({
 
           {/* Tags */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Tags (comma separated)</label>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+              Tags (comma separated)
+            </label>
             <input
               type="text"
               placeholder="e.g. health, cardio, urgent"
@@ -526,7 +548,9 @@ export default function LogModal({
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Notes / Details</label>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+              Notes / Details
+            </label>
             <textarea
               rows={3}
               placeholder="Add optional notes..."

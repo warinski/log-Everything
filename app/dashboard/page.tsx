@@ -4,12 +4,12 @@ import { getFilteredLogs } from '@/lib/actions/logActions';
 import { getUserCategories } from '@/lib/actions/categoryActions';
 import DashboardClient from '@/components/DashboardClient';
 
-export const instant = false; // 👈 Allows the page to be a blocking route for dynamic authentication navigation
+export const instant = false;
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; category?: string }> & { search?: string; category?: string };
+  searchParams: Promise<{ search?: string; category?: string }>;
 }) {
   const session = await auth();
 
@@ -18,7 +18,7 @@ export default async function DashboardPage({
   }
 
   // Extract the real MongoDB user ID from the session callback
-  const userId = (session.user as any).id;
+  const userId = (session.user as { id: string }).id;
   const userName = session.user.name || 'User';
 
   const resolvedSearchParams = await searchParams;
@@ -36,11 +36,11 @@ export default async function DashboardPage({
   ]);
 
   return (
-    <DashboardClient 
-      initialLogs={initialLogs} 
+    <DashboardClient
+      initialLogs={initialLogs || []}
       initialCategories={initialCategories || []}
-      userId={userId} 
-      userName={userName} 
+      userId={userId}
+      userName={userName}
     />
   );
 }

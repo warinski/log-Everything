@@ -7,6 +7,17 @@ import { getUserCategories, updateCategory, deleteCategory, createCategory } fro
 import { getFilteredLogs, updateCategoryNameInLogs } from '@/lib/actions/logActions';
 import { CategoryTemplate } from '@/components/LogModal';
 
+type FieldType = 'number' | 'boolean' | 'date' | 'text' | 'select' | 'checkbox' | 'time' | 'currency';
+
+interface EditableField {
+  name: string;
+  label: string;
+  fieldType: FieldType;
+  required: boolean;
+  options?: string[];
+  optionsString?: string;
+}
+
 interface CategoriesClientProps {
   userId: string;
 }
@@ -28,9 +39,9 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('📁');
   const [color, setColor] = useState('#3B82F6');
-  const [fields, setFields] = useState<Array<{ name: string; label: string; fieldType: string; required: boolean; options?: string[]; optionsString?: string }>>([]);
+  const [fields, setFields] = useState<EditableField[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  
+
   // User-friendly error state located inside the modal
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -88,6 +99,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
     setFields(
       ((cat.fields as any[]) || []).map((f) => ({
         ...f,
+        fieldType: (f.fieldType || 'text') as FieldType,
         optionsString: f.options ? f.options.join(', ') : '',
       }))
     );
@@ -122,14 +134,21 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
     }
 
     try {
-      const formattedFields = fields.map((f) => ({
+      const formattedFields: Array<{
+        name: string;
+        label: string;
+        fieldType: FieldType;
+        required: boolean;
+        options?: string[];
+      }> = fields.map((f) => ({
         name: f.name || f.label.trim().toLowerCase().replace(/\s+/g, '_'),
         label: f.label.trim(),
         fieldType: f.fieldType,
         required: f.required ?? true,
-        options: f.fieldType === 'select' && f.optionsString 
-          ? f.optionsString.split(',').map((o) => o.trim()).filter(Boolean) 
-          : undefined,
+        options:
+          f.fieldType === 'select' && f.optionsString
+            ? f.optionsString.split(',').map((o) => o.trim()).filter(Boolean)
+            : undefined,
       }));
 
       if (isCreating) {
@@ -138,14 +157,14 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
           name: name.trim(),
           icon,
           color,
-          fields: formattedFields,
+          fields: formattedFields as any,
         });
       } else if (editingCategory) {
         await updateCategory(editingCategory._id, {
           name: name.trim(),
           icon,
           color,
-          fields: formattedFields,
+          fields: formattedFields as any,
         });
 
         if (editingCategory.name !== name.trim()) {
@@ -344,7 +363,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                     <div className="absolute left-0 mt-2 p-2 bg-white border border-blue-100 rounded-xl shadow-xl grid grid-cols-5 gap-1.5 z-30 w-64 max-h-60 overflow-y-auto">
                       {[
                         // Original 20 emojis
-                        '📁', '💼', '🏃‍♂️', '💰', '🎯', '📚', '⚡', '💡', '🔥', '🍎', 
+                        '📁', '💼', '🏃‍♂️', '💰', '🎯', '📚', '⚡', '💡', '🔥', '🍎',
                         '💻', '🛠️', '🎨', '✈️', '🛒', '🧘‍♂️', '🚀', '⭐', '❤️', '📅',
                         // 30 requested & diverse new emojis (5 columns layout)
                         '⛽', '💇‍♂️', '🛌', '⏰', '🧹', '🔧', '🍿', '🙏', '🍔', '💧',
@@ -431,7 +450,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                             disabled={Boolean(isExistingField)}
                             onChange={(e) => {
                               const updated = [...fields];
-                              updated[idx].fieldType = e.target.value;
+                              updated[idx].fieldType = e.target.value as FieldType;
                               setFields(updated);
                             }}
                             style={{ fontSize: '16px' }}
