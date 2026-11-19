@@ -29,12 +29,22 @@ export default function DashboardClient({
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<LogItem | null>(null);
 
-  const activeSearch = searchQuery || urlSearchQuery;
+  const activeSearch = debouncedSearchQuery || urlSearchQuery;
+
+  // Debounce search input by 250ms before querying the backend
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -148,6 +158,7 @@ export default function DashboardClient({
     setSelectedCategory('');
     setSelectedTags([]);
     setSearchQuery('');
+    setDebouncedSearchQuery('');
 
     if (urlSearchQuery) {
       window.history.pushState({}, '', '/dashboard');

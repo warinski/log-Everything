@@ -18,6 +18,51 @@ interface CreateLogInput {
   timestamp?: Date;
 }
 
+function matchesSearchQuery(log: any, rawQuery: string, matchingCategoryIds: Set<string>): boolean {
+  const q = rawQuery.trim().toLowerCase();
+  if (!q) return true;
+
+  // 1. Category template name or custom field name matched on the user's Category
+  if (log.categoryId && matchingCategoryIds.has(String(log.categoryId))) {
+    return true;
+  }
+
+  // 2. Category name stored directly on the log
+  if (typeof log.categoryName === 'string' && log.categoryName.toLowerCase().includes(q)) {
+    return true;
+  }
+
+  // 3. Log title
+  if (typeof log.title === 'string' && log.title.toLowerCase().includes(q)) {
+    return true;
+  }
+
+  // 4. Log notes
+  if (typeof log.notes === 'string' && log.notes.toLowerCase().includes(q)) {
+    return true;
+  }
+
+  // 5. Tags
+  if (Array.isArray(log.tags) && log.tags.some((tag: unknown) => String(tag).toLowerCase().includes(q))) {
+    return true;
+  }
+
+  // 6. Dynamic attributes (both field keys/names and field values)
+  if (log.attributes && typeof log.attributes === 'object') {
+    for (const [key, val] of Object.entries(log.attributes)) {
+      const normalizedKey = key.replace(/_/g, ' ').toLowerCase();
+      if (key.toLowerCase().includes(q) || normalizedKey.includes(q)) {
+        return true;
+      }
+      if (val !== undefined && val !== null && String(val).toLowerCase().includes(q)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export async function createLog(data: CreateLogInput) {
   try {
     await dbConnect();
@@ -150,16 +195,36 @@ export async function getFilteredLogs({
       query.tags = { $all: tags };
     }
 
-    if (searchQuery) {
-      query.$or = [
-        { title: { $regex: searchQuery, $options: 'i' } },
-        { notes: { $regex: searchQuery, $options: 'i' } },
-        { tags: { $regex: searchQuery, $options: 'i' } },
-      ];
+    const logs = await Log.find(query).sort({ timestamp: -1 }).lean();
+
+    if (!searchQuery || searchQuery.trim() === '') {
+      return JSON.parse(JSON.stringify(logs));
     }
 
-    const logs = await Log.find(query).sort({ timestamp: -1 }).lean();
-    return JSON.parse(JSON.stringify(logs));
+    const q = searchQuery.trim().toLowerCase();
+    const userCategories = (await Category.find({ userId }).lean()) as any[];
+    const matchingCategoryIds = new Set<string>();
+
+    for (const cat of userCategories) {
+      const catNameMatch = typeof cat.name === 'string' && cat.name.toLowerCase().includes(q);
+      const fieldMatch =
+        Array.isArray(cat.fields) &&
+        cat.fields.some((f: any) => {
+          const label = typeof f.label === 'string' ? f.label.toLowerCase() : '';
+          const fname = typeof f.name === 'string' ? f.name.toLowerCase() : '';
+          return label.includes(q) || fname.includes(q);
+        });
+
+      if (catNameMatch || fieldMatch) {
+        matchingCategoryIds.add(String(cat._id));
+      }
+    }
+
+    const filteredLogs = logs.filter((log: any) =>
+      matchesSearchQuery(log, searchQuery, matchingCategoryIds)
+    );
+
+    return JSON.parse(JSON.stringify(filteredLogs));
   } catch (error: any) {
     console.error('Error fetching filtered logs:', error);
     return [];
