@@ -11,15 +11,20 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
-  const userId = (session.user as any).id;
+  const userId = (session.user as any).id || session.user.email;
 
   await dbConnect();
-  const dbUser = await User.findOne({ $or: [{ _id: userId }, { email: session.user.email }] }).lean();
+  const dbUser = await User.findOne({
+    $or: [{ _id: userId }, { email: session.user.email }],
+  }).lean();
 
   const userData = {
-    userId: userId,
-    name: dbUser?.name || session.user.name || '',
-    email: dbUser?.email || session.user.email || '',
+    userId: dbUser ? String((dbUser as any)._id) : String(userId),
+    name: (dbUser as any)?.name || session.user.name || '',
+    email: (dbUser as any)?.email || session.user.email || '',
+    role: (dbUser as any)?.role || 'user',
+    plan: (dbUser as any)?.plan || 'free',
+    features: Array.isArray((dbUser as any)?.features) ? (dbUser as any).features : [],
   };
 
   return <SettingsClient user={userData} />;

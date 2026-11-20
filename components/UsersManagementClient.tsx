@@ -155,24 +155,26 @@ export default function UsersManagementClient({
       {/* Search & Role Filter */}
       <div className="bg-white border border-blue-100 rounded-2xl p-3.5 shadow-2xs flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, email, role, or plan..."
-            className="w-full rounded-xl border border-blue-100 pl-9 pr-3 py-2 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-blue-500"
-          />
+            style={{ fontSize: '16px' }}
+            className="w-full rounded-xl border border-blue-100 pl-8 pr-3 py-1.5 text-gray-900 focus:outline-none focus:border-blue-500"
+            />
         </div>
 
         <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as 'all' | UserRole)}
-          className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs sm:text-sm text-gray-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as 'all' | UserRole)}
+            style={{ fontSize: '16px' }}
+            className="rounded-xl border border-blue-100 bg-white px-2.5 py-1.5 text-gray-800 focus:outline-none focus:border-blue-500 cursor-pointer"
         >
-          <option value="all">All Roles</option>
-          <option value="user">Standard Users</option>
-          <option value="super_user">Super-Users</option>
+            <option value="all">All Roles</option>
+            <option value="user">Standard Users</option>
+            <option value="super_user">Super-Users</option>
         </select>
       </div>
 
@@ -228,33 +230,35 @@ export default function UsersManagementClient({
 
                     {/* Role Selector */}
                     <td className="py-3.5 px-4">
-                      <select
+                    <select
                         disabled={isSelf || isSaving}
                         value={user.role}
                         onChange={(e) =>
-                          handleUpdateUser(user, { role: e.target.value as UserRole })
+                        handleUpdateUser(user, { role: e.target.value as UserRole })
                         }
-                        className="rounded-lg border border-blue-100 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 focus:outline-none focus:border-blue-500 disabled:opacity-60 cursor-pointer"
-                      >
+                        style={{ fontSize: '14px' }}
+                        className="rounded-lg border border-blue-100 bg-white px-2.5 py-1.5 font-medium text-gray-800 focus:outline-none focus:border-blue-500 disabled:opacity-60 cursor-pointer"
+                    >
                         <option value="user">User</option>
                         <option value="super_user">Super-User</option>
-                      </select>
+                    </select>
                     </td>
 
                     {/* Plan Selector */}
                     <td className="py-3.5 px-4">
-                      <select
+                    <select
                         disabled={isSaving}
                         value={user.plan}
                         onChange={(e) =>
-                          handleUpdateUser(user, { plan: e.target.value as UserPlan })
+                        handleUpdateUser(user, { plan: e.target.value as UserPlan })
                         }
-                        className="rounded-lg border border-blue-100 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 focus:outline-none focus:border-blue-500 disabled:opacity-60 cursor-pointer"
-                      >
+                        style={{ fontSize: '14px' }}
+                        className="rounded-lg border border-blue-100 bg-white px-2.5 py-1.5 font-medium text-gray-800 focus:outline-none focus:border-blue-500 disabled:opacity-60 cursor-pointer"
+                    >
                         <option value="free">Free</option>
                         <option value="standard">Standard</option>
                         <option value="pro">Pro</option>
-                      </select>
+                    </select>
                     </td>
 
                     {/* Individual Feature Overrides */}

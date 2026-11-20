@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FolderKanban, Plus, Pencil, Trash2, X, Check, Layers, FileText, Search, AlertCircle } from 'lucide-react';
+import {
+  FolderKanban,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Check,
+  Layers,
+  FileText,
+  Search,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 import { getUserCategories, updateCategory, deleteCategory, createCategory } from '@/lib/actions/categoryActions';
 import { getFilteredLogs, updateCategoryNameInLogs } from '@/lib/actions/logActions';
 import { CategoryTemplate } from '@/components/LogModal';
@@ -27,6 +39,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
   const [categories, setCategories] = useState<CategoryTemplate[]>([]);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Search filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,6 +139,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
   };
 
   const handleSaveCategory = async () => {
+    if (isSaving) return;
     setFormError(null);
 
     if (!name.trim()) {
@@ -134,6 +148,8 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
     }
 
     try {
+      setIsSaving(true);
+
       const formattedFields: Array<{
         name: string;
         label: string;
@@ -180,6 +196,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
       } else {
         setFormError(err.message || 'Could not save category template. Please try again.');
       }
+      setIsSaving(false);
     }
   };
 
@@ -327,12 +344,14 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                 {isCreating ? 'New Category Template' : 'Edit Category Template'}
               </h2>
               <button
+                type="button"
+                disabled={isSaving}
                 onClick={() => {
                   setIsCreating(false);
                   setEditingCategory(null);
                   setFormError(null);
                 }}
-                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -352,9 +371,10 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                 <div className="relative">
                   <button
                     type="button"
+                    disabled={isSaving}
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                     style={{ fontSize: '20px' }}
-                    className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center bg-white border border-blue-100 rounded-2xl hover:bg-gray-50 cursor-pointer shadow-2xs shrink-0"
+                    className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center bg-white border border-blue-100 rounded-2xl hover:bg-gray-50 cursor-pointer shadow-2xs shrink-0 disabled:opacity-50"
                   >
                     {icon}
                   </button>
@@ -389,6 +409,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                 <input
                   type="text"
                   required
+                  disabled={isSaving}
                   placeholder="Category Name (e.g. Workouts)"
                   value={name}
                   onChange={(e) => {
@@ -396,16 +417,17 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                     if (formError) setFormError(null);
                   }}
                   style={{ fontSize: '16px' }}
-                  className="flex-1 min-w-0 px-3.5 py-2.5 sm:py-3 bg-white border border-blue-100 rounded-2xl text-gray-900 focus:outline-none focus:border-blue-500 text-xs sm:text-sm box-border"
+                  className="flex-1 min-w-0 px-3.5 py-2.5 sm:py-3 bg-white border border-blue-100 rounded-2xl text-gray-900 focus:outline-none focus:border-blue-500 text-xs sm:text-sm box-border disabled:opacity-50"
                 />
 
                 {/* Round Color Picker */}
                 <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0">
                   <input
                     type="color"
+                    disabled={isSaving}
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
                     title="Category Color"
                   />
                   <div
@@ -434,6 +456,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                         <input
                           type="text"
                           required
+                          disabled={isSaving}
                           placeholder="Field (e.g. Distance)"
                           value={field.label}
                           onChange={(e) => {
@@ -442,12 +465,12 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                             setFields(updated);
                           }}
                           style={{ fontSize: '16px' }}
-                          className="w-full sm:flex-1 min-w-0 px-3.5 py-2.5 bg-white border border-blue-100 rounded-xl text-gray-900 focus:outline-none focus:border-blue-500 text-xs sm:text-sm box-border"
+                          className="w-full sm:flex-1 min-w-0 px-3.5 py-2.5 bg-white border border-blue-100 rounded-xl text-gray-900 focus:outline-none focus:border-blue-500 text-xs sm:text-sm box-border disabled:opacity-50"
                         />
                         <div className="flex items-center gap-2 justify-between sm:justify-start box-border">
                           <select
                             value={field.fieldType}
-                            disabled={Boolean(isExistingField)}
+                            disabled={Boolean(isExistingField) || isSaving}
                             onChange={(e) => {
                               const updated = [...fields];
                               updated[idx].fieldType = e.target.value as FieldType;
@@ -455,7 +478,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                             }}
                             style={{ fontSize: '16px' }}
                             className={`flex-1 sm:w-32 px-3.5 py-2.5 border border-blue-100 rounded-xl text-xs sm:text-sm box-border ${
-                              isExistingField
+                              isExistingField || isSaving
                                 ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                                 : 'bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-blue-500'
                             }`}
@@ -471,8 +494,9 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                           </select>
                           <button
                             type="button"
+                            disabled={isSaving}
                             onClick={() => handleRemoveField(idx)}
-                            className="text-red-500 hover:text-red-700 p-2 cursor-pointer shrink-0"
+                            className="text-red-500 hover:text-red-700 p-2 cursor-pointer shrink-0 disabled:opacity-50"
                             title="Remove Field"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -485,6 +509,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                         <div>
                           <input
                             type="text"
+                            disabled={isSaving}
                             placeholder="Options (comma separated, e.g. Low, Medium, High)"
                             value={field.optionsString || ''}
                             onChange={(e) => {
@@ -493,7 +518,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                               setFields(updated);
                             }}
                             style={{ fontSize: '16px' }}
-                            className="w-full px-3.5 py-2 bg-blue-50/50 border border-blue-100 rounded-xl text-xs sm:text-sm text-gray-800 focus:outline-none focus:border-blue-500"
+                            className="w-full px-3.5 py-2 bg-blue-50/50 border border-blue-100 rounded-xl text-xs sm:text-sm text-gray-800 focus:outline-none focus:border-blue-500 disabled:opacity-50"
                           />
                         </div>
                       )}
@@ -503,13 +528,14 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                         <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
                           <input
                             type="checkbox"
+                            disabled={isSaving}
                             checked={field.required ?? true}
                             onChange={(e) => {
                               const updated = [...fields];
                               updated[idx].required = e.target.checked;
                               setFields(updated);
                             }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4"
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4 disabled:opacity-50"
                           />
                           Required field
                         </label>
@@ -527,8 +553,9 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                 {/* Add Field Button positioned naturally below the input fields */}
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={handleAddField}
-                  className="w-full py-2.5 border-2 border-dashed border-blue-200 hover:border-blue-400 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50/50 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  className="w-full py-2.5 border-2 border-dashed border-blue-200 hover:border-blue-400 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50/50 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                 >
                   + Add Field
                 </button>
@@ -539,22 +566,25 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
             <div className="px-5 sm:px-6 py-4 border-t border-blue-100 bg-white flex justify-end gap-2 shrink-0 box-border">
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => {
                   setIsCreating(false);
                   setEditingCategory(null);
                   setFormError(null);
                 }}
-                className="px-4 py-2 border border-blue-100 rounded-xl font-medium text-xs text-gray-600 hover:bg-gray-50 cursor-pointer"
+                className="px-4 py-2 border border-blue-100 rounded-xl font-medium text-xs text-gray-600 hover:bg-gray-50 cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={handleSaveCategory}
                 style={{ backgroundColor: '#2563EB' }}
-                className="px-4 py-2 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-60"
               >
-                Save Changes
+                {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
