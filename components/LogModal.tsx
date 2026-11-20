@@ -388,6 +388,22 @@ export default function LogModal({
                       </button>
                     </div>
 
+                    <div className="flex items-center justify-between pt-0.5">
+                      <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={field.required}
+                          onChange={(e) => {
+                            const updated = [...newFields];
+                            updated[idx].required = e.target.checked;
+                            setNewFields(updated);
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span>Required</span>
+                      </label>
+                    </div>
+
                     {field.type === 'select' && (
                       <div>
                         <input

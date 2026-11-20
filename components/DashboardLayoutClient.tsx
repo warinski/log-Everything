@@ -12,10 +12,20 @@ import { createLog, updateLog } from '@/lib/actions/logActions';
 interface DashboardLayoutClientProps {
   userId: string;
   userName: string;
+  userRole?: string;
+  userPlan?: string;
+  userFeatures?: string[];
   children: React.ReactNode;
 }
 
-function DashboardContent({ userId, userName, children }: DashboardLayoutClientProps) {
+function DashboardContent({
+  userId,
+  userName,
+  userRole,
+  userPlan,
+  userFeatures,
+  children,
+}: DashboardLayoutClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -144,7 +154,12 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
             if (window.innerWidth < 1280) setSidebarOpen(false);
           }}
         >
-          <Sidebar userName={userName} />
+          <Sidebar
+            userName={userName}
+            userRole={userRole}
+            userPlan={userPlan}
+            userFeatures={userFeatures}
+          />
         </div>
 
         {/* Main Workspace */}
@@ -170,10 +185,23 @@ function DashboardContent({ userId, userName, children }: DashboardLayoutClientP
   );
 }
 
-export default function DashboardLayoutClient({ userId, userName, children }: DashboardLayoutClientProps) {
+export default function DashboardLayoutClient({
+  userId,
+  userName,
+  userRole,
+  userPlan,
+  userFeatures,
+  children,
+}: DashboardLayoutClientProps) {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center text-gray-400">Loading dashboard...</div>}>
-      <DashboardContent userId={userId} userName={userName}>
+      <DashboardContent
+        userId={userId}
+        userName={userName}
+        userRole={userRole}
+        userPlan={userPlan}
+        userFeatures={userFeatures}
+      >
         {children}
       </DashboardContent>
     </Suspense>

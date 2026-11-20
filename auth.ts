@@ -4,6 +4,11 @@ import dbConnect from '@/lib/mongodb';
 import { User } from '@/lib/models/User';
 import bcrypt from 'bcryptjs';
 
+function normalizeFeatures(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(raw).map((item) => String(item));
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   providers: [
@@ -14,47 +19,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log('--- AUTH DEBUG: Authorize called with email:', credentials?.email);
-
         if (!credentials?.email || !credentials?.password) {
-          console.log('--- AUTH DEBUG: Missing email or password ---');
-          return null; // Return null instead of throwing so NextAuth handles it cleanly
+          return null;
         }
 
         try {
           await dbConnect();
-          const user = await User.findOne({ email: credentials.email });
+          const email = String(credentials.email).trim().toLowerCase();
+          const user = await User.findOne({ email }).lean();
 
-          if (!user) {
-            console.log('--- AUTH DEBUG: User not found in database for email:', credentials.email);
-            return null;
-          }
-
-          if (!user.password) {
-            console.log('--- AUTH DEBUG: User record has no password stored ---');
+          if (!user || !(user as any).password) {
             return null;
           }
 
           const isPasswordValid = await bcrypt.compare(
             credentials.password as string,
-            user.password
+            (user as any).password
           );
 
-          console.log('--- AUTH DEBUG: Password validation result:', isPasswordValid);
-
           if (!isPasswordValid) {
-            console.log('--- AUTH DEBUG: Password does not match ---');
             return null;
           }
 
-          console.log('--- AUTH DEBUG: Authentication success for:', user.email);
           return {
-            id: user._id.toString(),
-            name: user.name,
-            email: user.email,
+            id: String((user as any)._id),
+            name: String((user as any).name || ''),
+            email: String((user as any).email || email),
+            role: String((user as any).role || 'user'),
+            plan: String((user as any).plan || 'free'),
+            features: normalizeFeatures((user as any).features),
           };
         } catch (error) {
-          console.error('--- AUTH DEBUG: Error in authorize function:', error);
+          console.error('Error in authorize function:', error);
           return null;
         }
       },
@@ -65,15 +61,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: '/login',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
-        token.id = user.id;
+        token.id = String(user.id);
+        token.role = String((user as any).role || 'user');
+        token.plan = String((user as any).plan || 'free');
+        token.features = normalizeFeatures((user as any).features);
       }
+
+      if (trigger === 'update' && token.id) {
+        await dbConnect();
+        const dbUser = await User.findById(token.id).lean();
+        if (dbUser) {
+          token.role = String((dbUser as any).role || 'user');
+          token.plan = String((dbUser as any).plan || 'free');
+          token.features = normalizeFeatures((dbUser as any).features);
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.id;
+        (session.user as any).id = String(token.id || '');
+        (session.user as any).role = String(token.role || 'user');
+        (session.user as any).plan = String(token.plan || 'free');
+        (session.user as any).features = normalizeFeatures(token.features);
       }
       return session;
     },

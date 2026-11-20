@@ -22,7 +22,13 @@ async function DashboardContent({ children }: { children: React.ReactNode }) {
   const userName = dbUser?.name || session.user.name || 'User';
 
   return (
-    <DashboardLayoutClient userId={userId} userName={userName}>
+    <DashboardLayoutClient
+      userId={userId}
+      userName={userName}
+      userRole={(session.user as any)?.role}
+      userPlan={(session.user as any)?.plan}
+      userFeatures={(session.user as any)?.features}
+    >
       {children}
     </DashboardLayoutClient>
   );
