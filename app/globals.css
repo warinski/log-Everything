@@ -36,3 +36,26 @@ input, textarea, select {
 html {
   font-size: 120%;
 }
+
+.analytics-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.analytics-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.analytics-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.analytics-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+.analytics-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.6);
+}
