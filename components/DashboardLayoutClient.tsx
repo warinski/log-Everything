@@ -19,6 +19,13 @@ interface DashboardLayoutClientProps {
   children: React.ReactNode;
 }
 
+function toDateOrUndefined(value: string | Date | undefined): Date | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return isNaN(value.getTime()) ? undefined : value;
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 function DashboardContent({
   userId,
   userName,
@@ -85,7 +92,7 @@ function DashboardContent({
               notes: previousSnapshot.notes,
               tags: previousSnapshot.tags,
               attributes: previousSnapshot.attributes,
-              timestamp: previousSnapshot.timestamp,
+              timestamp: toDateOrUndefined(previousSnapshot.timestamp),
             });
             window.dispatchEvent(new CustomEvent('logCreated'));
             router.refresh();
