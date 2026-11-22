@@ -11,6 +11,8 @@ export interface IUser {
   plan: UserPlan;
   features: string[]; // Optional per-user feature grants or overrides
   isActive: boolean;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +40,13 @@ const UserSchema = new Schema<IUser>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    resetPasswordToken: {
+      type: String,
+      index: true,
+    },
+    resetPasswordExpires: {
+      type: Date,
     },
   },
   { timestamps: true }

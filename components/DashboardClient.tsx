@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import FilterBar from '@/components/FilterBar';
 import LogCard, { LogItem } from '@/components/LogCard';
 import LogModal, { CategoryTemplate } from '@/components/LogModal';
+import { useUndoToast } from '@/components/UndoToastProvider';
 import { getFilteredLogs, deleteLog, createLog, updateLog } from '@/lib/actions/logActions';
 import { getUserCategories, createCategory } from '@/lib/actions/categoryActions';
 
@@ -22,6 +23,7 @@ export default function DashboardClient({
 }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showUndoToast } = useUndoToast();
   const urlSearchQuery = searchParams.get('search') || '';
 
   const [categories, setCategories] = useState<CategoryTemplate[]>(initialCategories);
@@ -167,9 +169,35 @@ export default function DashboardClient({
   };
 
   const handleDeleteLog = async (id: string) => {
+    const deletedSnapshot = logs.find((log) => log._id === id);
+
     try {
       await deleteLog(id, userId);
-      setLogs(logs.filter((log) => log._id !== id));
+      setLogs((prev) => prev.filter((log) => log._id !== id));
+
+      if (deletedSnapshot) {
+        showUndoToast({
+          message: `Deleted "${deletedSnapshot.title || 'log'}"`,
+          onUndo: async () => {
+            const restored = await createLog({
+              userId,
+              categoryId: deletedSnapshot.categoryId,
+              categoryName: deletedSnapshot.categoryName,
+              categoryIcon: deletedSnapshot.categoryIcon,
+              categoryColor: deletedSnapshot.categoryColor,
+              title: deletedSnapshot.title,
+              notes: deletedSnapshot.notes,
+              tags: deletedSnapshot.tags,
+              attributes: deletedSnapshot.attributes,
+              timestamp: deletedSnapshot.timestamp
+                ? new Date(deletedSnapshot.timestamp)
+                : undefined,
+            });
+            setLogs((prev) => [restored, ...prev]);
+            router.refresh();
+          },
+        });
+      }
     } catch (error) {
       console.error('Failed to delete log:', error);
     }

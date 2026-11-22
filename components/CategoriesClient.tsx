@@ -18,6 +18,7 @@ import {
 import { getUserCategories, updateCategory, deleteCategory, createCategory } from '@/lib/actions/categoryActions';
 import { getFilteredLogs, updateCategoryNameInLogs } from '@/lib/actions/logActions';
 import { CategoryTemplate } from '@/components/LogModal';
+import { useUndoToast } from '@/components/UndoToastProvider';
 
 type FieldType = 'number' | 'boolean' | 'date' | 'text' | 'select' | 'checkbox' | 'time' | 'currency';
 
@@ -36,6 +37,7 @@ interface CategoriesClientProps {
 
 export default function CategoriesClient({ userId }: CategoriesClientProps) {
   const router = useRouter();
+  const { showUndoToast } = useUndoToast();
   const [categories, setCategories] = useState<CategoryTemplate[]>([]);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -188,7 +190,11 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
         }
       }
 
-      window.location.reload();
+      setIsCreating(false);
+      setEditingCategory(null);
+      window.dispatchEvent(new CustomEvent('categoryCreated'));
+      router.refresh();
+      await loadData();
     } catch (err: any) {
       console.error('Failed to save category template:', err);
       if (err.message && err.message.includes('already exists')) {
@@ -196,17 +202,41 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
       } else {
         setFormError(err.message || 'Could not save category template. Please try again.');
       }
+    } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async (catId: string) => {
+    const deletedCat = categories.find((c) => c._id === catId);
+
     if (!window.confirm('Are you sure you want to delete this category template? Associated logs will remain as general logs.')) {
       return;
     }
+
     try {
       await deleteCategory(catId);
-      window.location.reload();
+      setCategories((prev) => prev.filter((c) => c._id !== catId));
+      window.dispatchEvent(new CustomEvent('categoryCreated'));
+      router.refresh();
+
+      if (deletedCat) {
+        showUndoToast({
+          message: `Deleted category "${deletedCat.name}"`,
+          onUndo: async () => {
+            await createCategory({
+              userId,
+              name: deletedCat.name,
+              icon: deletedCat.icon,
+              color: deletedCat.color,
+              fields: (deletedCat.fields as any) || [],
+            });
+            window.dispatchEvent(new CustomEvent('categoryCreated'));
+            router.refresh();
+            await loadData();
+          },
+        });
+      }
     } catch (err) {
       console.error('Failed to delete category:', err);
     }

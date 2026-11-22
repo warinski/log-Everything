@@ -1,5 +1,6 @@
 'use client';
 
+import { UndoToastProvider, useUndoToast } from '@/components/UndoToastProvider';
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Menu, X, Layers3 } from 'lucide-react';
@@ -28,6 +29,7 @@ function DashboardContent({
 }: DashboardLayoutClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showUndoToast } = useUndoToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -64,11 +66,37 @@ function DashboardContent({
 
   const handleSaveLog = async (logData: any, isEditing: boolean, logId?: string) => {
     if (isEditing && logId) {
+      const previousSnapshot = editingLog ? { ...editingLog } : null;
+
       await updateLog(logId, userId, logData);
+      window.dispatchEvent(new CustomEvent('logCreated'));
+      router.refresh();
+
+      if (previousSnapshot) {
+        showUndoToast({
+          message: `Updated "${previousSnapshot.title || 'log'}"`,
+          onUndo: async () => {
+            await updateLog(logId, userId, {
+              categoryId: previousSnapshot.categoryId,
+              categoryName: previousSnapshot.categoryName,
+              categoryIcon: previousSnapshot.categoryIcon,
+              categoryColor: previousSnapshot.categoryColor,
+              title: previousSnapshot.title,
+              notes: previousSnapshot.notes,
+              tags: previousSnapshot.tags,
+              attributes: previousSnapshot.attributes,
+              timestamp: previousSnapshot.timestamp,
+            });
+            window.dispatchEvent(new CustomEvent('logCreated'));
+            router.refresh();
+          },
+        });
+      }
     } else {
       await createLog({ ...logData, userId });
+      window.dispatchEvent(new CustomEvent('logCreated'));
+      router.refresh();
     }
-    router.refresh();
   };
 
   const handleSuccessAction = () => {
@@ -195,15 +223,17 @@ export default function DashboardLayoutClient({
 }: DashboardLayoutClientProps) {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center text-gray-400">Loading dashboard...</div>}>
-      <DashboardContent
-        userId={userId}
-        userName={userName}
-        userRole={userRole}
-        userPlan={userPlan}
-        userFeatures={userFeatures}
-      >
-        {children}
-      </DashboardContent>
+      <UndoToastProvider>
+        <DashboardContent
+          userId={userId}
+          userName={userName}
+          userRole={userRole}
+          userPlan={userPlan}
+          userFeatures={userFeatures}
+        >
+          {children}
+        </DashboardContent>
+      </UndoToastProvider>
     </Suspense>
   );
 }
