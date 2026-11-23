@@ -88,12 +88,7 @@ export default function LoginPage() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-semibold text-gray-700 uppercase">Password</label>
-              <Link
-                href="/forgot-password"
-                className="text-xs font-semibold text-blue-600 hover:underline"
-              >
-                Forgot password?
-              </Link>
+              
             </div>
             <div className="relative">
               <input
@@ -113,6 +108,12 @@ export default function LoginPage() {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              Forgot password?
+            </Link>
           </div>
 
           <button

@@ -31,8 +31,11 @@ export function useUndoToast() {
   return ctx;
 }
 
+const DEFAULT_DURATION_MS = 8000;
+
 export function UndoToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<UndoToastOptions | null>(null);
+  const [toastKey, setToastKey] = useState(0);
   const [isUndoing, setIsUndoing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -49,19 +52,17 @@ export function UndoToastProvider({ children }: { children: React.ReactNode }) {
     setIsUndoing(false);
   }, []);
 
-  const showUndoToast = useCallback(
-    (options: UndoToastOptions) => {
-      clearTimer();
-      setIsUndoing(false);
-      setToast(options);
+  const showUndoToast = useCallback((options: UndoToastOptions) => {
+    clearTimer();
+    setIsUndoing(false);
+    setToast(options);
+    setToastKey((prev) => prev + 1);
 
-      const duration = options.durationMs ?? 8000;
-      timerRef.current = setTimeout(() => {
-        setToast(null);
-      }, duration);
-    },
-    []
-  );
+    const duration = options.durationMs ?? DEFAULT_DURATION_MS;
+    timerRef.current = setTimeout(() => {
+      setToast(null);
+    }, duration);
+  }, []);
 
   useEffect(() => {
     return () => clearTimer();
@@ -81,21 +82,62 @@ export function UndoToastProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const durationMs = toast?.durationMs ?? DEFAULT_DURATION_MS;
+
   return (
     <UndoToastContext.Provider value={{ showUndoToast, dismissToast }}>
       {children}
 
       {toast && (
         <div
+          key={toastKey}
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 right-5 z-50 max-w-sm w-[calc(100vw-2.5rem)] bg-gray-900 text-white rounded-2xl shadow-xl border border-gray-800 px-4 py-3 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3"
+          className="fixed bottom-5 right-5 z-50 max-w-sm w-[calc(100vw-2.5rem)] bg-gray-900 text-white rounded-2xl shadow-xl px-4 py-3 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3"
         >
-          <span className="text-xs sm:text-sm font-medium text-gray-100 leading-snug">
+          {/* Timer indicator encircling the rounded rectangle perimeter */}
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 w-full h-full rounded-2xl overflow-visible"
+          >
+            <rect
+              x="1"
+              y="1"
+              width="calc(100% - 2px)"
+              height="calc(100% - 2px)"
+              rx="15"
+              ry="15"
+              pathLength={100}
+              fill="none"
+              stroke="rgba(148, 163, 184, 0.22)"
+              strokeWidth="2"
+            />
+            <rect
+              x="1"
+              y="1"
+              width="calc(100% - 2px)"
+              height="calc(100% - 2px)"
+              rx="15"
+              ry="15"
+              pathLength={100}
+              fill="none"
+              stroke="#60A5FA"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeDasharray="100"
+              strokeDashoffset={0}
+              style={{
+                animation: `undo-perimeter-drain ${durationMs}ms linear forwards`,
+                animationPlayState: isUndoing ? 'paused' : 'running',
+              }}
+            />
+          </svg>
+
+          <span className="relative z-10 text-xs sm:text-sm font-medium text-gray-100 leading-snug">
             {toast.message}
           </span>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="relative z-10 flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               disabled={isUndoing}
@@ -120,6 +162,17 @@ export function UndoToastProvider({ children }: { children: React.ReactNode }) {
               <X className="w-4 h-4" />
             </button>
           </div>
+
+          <style jsx>{`
+            @keyframes undo-perimeter-drain {
+              from {
+                stroke-dashoffset: 0;
+              }
+              to {
+                stroke-dashoffset: 100;
+              }
+            }
+          `}</style>
         </div>
       )}
     </UndoToastContext.Provider>

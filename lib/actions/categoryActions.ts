@@ -81,11 +81,71 @@ export async function createCategory(data: CreateCategoryInput) {
 }
 
 /**
+ * Duplicate an existing category template for the user
+ */
+export async function duplicateCategory(categoryId: string, userId: string) {
+  try {
+    await dbConnect();
+
+    if (!userId) {
+      throw new Error('Unauthorized: Missing user ID.');
+    }
+
+    if (!categoryId) {
+      throw new Error('Category ID is required.');
+    }
+
+    const sourceCategory = (await Category.findOne({ _id: categoryId, userId }).lean()) as any;
+    if (!sourceCategory) {
+      throw new Error('Category not found or unauthorized.');
+    }
+
+    const baseCopyName = `Copy of ${sourceCategory.name}`.trim();
+    let candidateName = baseCopyName;
+    let suffix = 2;
+
+    while (await Category.exists({ userId, name: candidateName })) {
+      candidateName = `${baseCopyName} (${suffix})`;
+      suffix += 1;
+    }
+
+    const clonedFields = Array.isArray(sourceCategory.fields)
+      ? JSON.parse(JSON.stringify(sourceCategory.fields))
+      : [];
+
+    const clonedTags = Array.isArray(sourceCategory.defaultTags)
+      ? [...sourceCategory.defaultTags]
+      : [];
+
+    const duplicatedCategory = await Category.create({
+      userId,
+      name: candidateName,
+      color: sourceCategory.color || '#3B82F6',
+      icon: sourceCategory.icon || '📁',
+      defaultTags: clonedTags,
+      fields: clonedFields,
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/categories');
+    revalidatePath('/dashboard/analytics');
+
+    return JSON.parse(JSON.stringify(duplicatedCategory));
+  } catch (error: any) {
+    console.error('Error duplicating category:', error);
+    if (error.code === 11000) {
+      throw new Error('A category with this name already exists.');
+    }
+    throw new Error(error.message || 'Failed to duplicate category template.');
+  }
+}
+
+/**
  * Update an existing category template
  */
 export async function updateCategory(categoryId: string, data: UpdateCategoryInput) {
   console.log('🚨 updateCategory server action CALLED with ID:', categoryId, 'Data:', data);
-  
+
   try {
     await dbConnect();
 
@@ -129,23 +189,29 @@ export async function updateCategory(categoryId: string, data: UpdateCategoryInp
       const newFields = updatedCategory.fields || [];
 
       for (const log of logs) {
-        let attributes = log.attributes instanceof Map 
-          ? Object.fromEntries(log.attributes) 
-          : { ...(log.attributes || {}) };
+        let attributes =
+          log.attributes instanceof Map
+            ? Object.fromEntries(log.attributes)
+            : { ...(log.attributes || {}) };
 
         let hasChanges = false;
         const newAttributes: Record<string, any> = {};
 
         newFields.forEach((newField: any, index: number) => {
           const oldField = oldFields[index];
-          
-          const oldKeyByName = oldField?.name || oldField?.label?.trim().toLowerCase().replace(/\s+/g, '_');
-          const newKey = newField.name || newField.label.trim().toLowerCase().replace(/\s+/g, '_');
+
+          const oldKeyByName =
+            oldField?.name || oldField?.label?.trim().toLowerCase().replace(/\s+/g, '_');
+          const newKey =
+            newField.name || newField.label.trim().toLowerCase().replace(/\s+/g, '_');
 
           if (oldKeyByName && attributes[oldKeyByName] !== undefined) {
             newAttributes[newKey] = attributes[oldKeyByName];
             if (oldKeyByName !== newKey) hasChanges = true;
-          } else if (oldField?.label && attributes[oldField.label.trim().toLowerCase().replace(/\s+/g, '_')] !== undefined) {
+          } else if (
+            oldField?.label &&
+            attributes[oldField.label.trim().toLowerCase().replace(/\s+/g, '_')] !== undefined
+          ) {
             const fallbackKey = oldField.label.trim().toLowerCase().replace(/\s+/g, '_');
             newAttributes[newKey] = attributes[fallbackKey];
             hasChanges = true;
@@ -176,7 +242,15 @@ export async function updateCategory(categoryId: string, data: UpdateCategoryInp
     return JSON.parse(JSON.stringify(updatedCategory));
   } catch (error: any) {
     console.error('Error updating category:', error);
-    throw new Error(error.message || 'Failed to update category.');
+    const isDuplicateName =
+      error?.code === 11000 ||
+      /E11000|duplicate key/i.test(String(error?.message || ''));
+
+    if (isDuplicateName) {
+      throw new Error('A category with this name already exists.');
+    }
+
+    throw new Error(error?.message || 'Failed to update category.');
   }
 }
 
@@ -201,11 +275,11 @@ export async function deleteCategory(categoryId: string) {
     await Log.updateMany(
       { categoryId: categoryId },
       {
-        $unset: { categoryId: "" },
+        $unset: { categoryId: '' },
         $set: {
-          categoryName: "_General log",
-          categoryIcon: "📁",
-          categoryColor: "#3B82F6",
+          categoryName: '_General log',
+          categoryIcon: '📁',
+          categoryColor: '#3B82F6',
         },
       }
     );

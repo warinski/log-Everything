@@ -26,7 +26,7 @@ interface LogCardProps {
   onEdit: (log: LogItem) => void;
   onDelete: (id: string) => void;
   onTagClick: (tag: string) => void;
-  onSuccess?: () => void;
+  onSuccess?: () => void | Promise<void>;
 }
 
 export default function LogCard({ log, userId, categories = [], onEdit, onDelete, onTagClick, onSuccess }: LogCardProps) {
@@ -44,11 +44,7 @@ export default function LogCard({ log, userId, categories = [], onEdit, onDelete
     try {
       setIsDuplicating(true);
       await duplicateLog(log._id, userId);
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        window.location.reload();
-      }
+      await onSuccess?.();
     } catch (err) {
       console.error('Failed to duplicate log:', err);
     } finally {

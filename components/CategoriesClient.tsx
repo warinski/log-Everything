@@ -7,15 +7,20 @@ import {
   Plus,
   Pencil,
   Trash2,
-  X,
-  Check,
-  Layers,
+  Copy,
   FileText,
+  X,
   Search,
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-import { getUserCategories, updateCategory, deleteCategory, createCategory } from '@/lib/actions/categoryActions';
+import {
+  getUserCategories,
+  updateCategory,
+  deleteCategory,
+  createCategory,
+  duplicateCategory,
+} from '@/lib/actions/categoryActions';
 import { getFilteredLogs, updateCategoryNameInLogs } from '@/lib/actions/logActions';
 import { CategoryTemplate } from '@/components/LogModal';
 import { useUndoToast } from '@/components/UndoToastProvider';
@@ -42,6 +47,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   // Search filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,19 +139,38 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
   };
 
   const handleAddField = () => {
-    setFields([...fields, { name: '', label: '', fieldType: 'text', required: true, optionsString: '' }]);
+    setFields([
+      ...fields,
+      { name: '', label: '', fieldType: 'text', required: true, optionsString: '' },
+    ]);
   };
 
   const handleRemoveField = (index: number) => {
     setFields(fields.filter((_, i) => i !== index));
   };
 
+  const handleDuplicate = async (cat: CategoryTemplate) => {
+    if (duplicatingId) return;
+    try {
+      setDuplicatingId(cat._id);
+      await duplicateCategory(cat._id, userId);
+      window.dispatchEvent(new CustomEvent('categoryCreated'));
+      router.refresh();
+      await loadData();
+    } catch (err) {
+      console.error('Failed to duplicate category template:', err);
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
+
   const handleSaveCategory = async () => {
     if (isSaving) return;
     setFormError(null);
 
-    if (!name.trim()) {
-      setFormError('Category name is required.');
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setFormError('Please enter a category name before saving.');
       return;
     }
 
@@ -165,28 +190,31 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
         required: f.required ?? true,
         options:
           f.fieldType === 'select' && f.optionsString
-            ? f.optionsString.split(',').map((o) => o.trim()).filter(Boolean)
+            ? f.optionsString
+                .split(',')
+                .map((o) => o.trim())
+                .filter(Boolean)
             : undefined,
       }));
 
       if (isCreating) {
         await createCategory({
           userId,
-          name: name.trim(),
+          name: trimmedName,
           icon,
           color,
           fields: formattedFields as any,
         });
       } else if (editingCategory) {
         await updateCategory(editingCategory._id, {
-          name: name.trim(),
+          name: trimmedName,
           icon,
           color,
           fields: formattedFields as any,
         });
 
-        if (editingCategory.name !== name.trim()) {
-          await updateCategoryNameInLogs(editingCategory._id, name.trim(), icon, color);
+        if (editingCategory.name !== trimmedName) {
+          await updateCategoryNameInLogs(editingCategory._id, trimmedName, icon, color);
         }
       }
 
@@ -197,10 +225,16 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
       await loadData();
     } catch (err: any) {
       console.error('Failed to save category template:', err);
-      if (err.message && err.message.includes('already exists')) {
-        setFormError('A category with this name already exists. Please choose a different name.');
+      const message = String(err?.message || '');
+      const isDuplicateName =
+        err?.code === 11000 || /already exists|E11000|duplicate key/i.test(message);
+
+      if (isDuplicateName) {
+        setFormError(
+          `You already have a category named "${trimmedName}". Please choose a different name.`
+        );
       } else {
-        setFormError(err.message || 'Could not save category template. Please try again.');
+        setFormError(message || 'Could not save category template. Please try again.');
       }
     } finally {
       setIsSaving(false);
@@ -210,7 +244,11 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
   const handleDelete = async (catId: string) => {
     const deletedCat = categories.find((c) => c._id === catId);
 
-    if (!window.confirm('Are you sure you want to delete this category template? Associated logs will remain as general logs.')) {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete this category template? Associated logs will remain as general logs.'
+      )
+    ) {
       return;
     }
 
@@ -247,7 +285,9 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
       {/* Header & Add Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">Categories & Templates</h1>
+          <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
+            Categories & Templates
+          </h1>
         </div>
 
         <button
@@ -278,7 +318,9 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
         <div className="bg-white border border-blue-100 rounded-2xl p-12 text-center space-y-3 shadow-2xs">
           <FolderKanban className="w-12 h-12 text-blue-300 mx-auto" />
           <p className="text-sm font-medium text-gray-600">
-            {categories.length === 0 ? 'No category templates created yet.' : 'No categories match your search.'}
+            {categories.length === 0
+              ? 'No category templates created yet.'
+              : 'No categories match your search.'}
           </p>
           {categories.length === 0 && (
             <button
@@ -313,6 +355,16 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
 
                     <div className="flex items-center gap-1">
                       <button
+                        type="button"
+                        onClick={() => handleDuplicate(cat)}
+                        disabled={duplicatingId === cat._id}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
+                        title="Duplicate Category"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleOpenEdit(cat)}
                         className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
                         title="Edit Category"
@@ -320,6 +372,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(cat._id)}
                         className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                         title="Delete Category"
@@ -333,7 +386,8 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                   <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium bg-blue-50/50 px-3 py-1.5 rounded-xl border border-blue-100/60 w-fit">
                     <FileText className="w-3.5 h-3.5 text-blue-500" />
                     <span>
-                      <strong className="text-gray-900">{logCount}</strong> {logCount === 1 ? 'log entry' : 'log entries'}
+                      <strong className="text-gray-900">{logCount}</strong>{' '}
+                      {logCount === 1 ? 'log entry' : 'log entries'}
                     </span>
                   </div>
 
@@ -349,7 +403,8 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                             key={idx}
                             className="text-[11px] bg-blue-50/70 text-blue-800 px-2 py-0.5 rounded-md font-medium border border-blue-100"
                           >
-                            {f.label || f.name} <span className="text-blue-400">({f.fieldType || f.type})</span>
+                            {f.label || f.name}{' '}
+                            <span className="text-blue-400">({f.fieldType || f.type})</span>
                           </span>
                         ))}
                       </div>
@@ -412,26 +467,26 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                   {showEmojiPicker && (
                     <div className="absolute left-0 mt-2 p-2 bg-white border border-blue-100 rounded-xl shadow-xl grid grid-cols-5 gap-1.5 z-30 w-64 max-h-60 overflow-y-auto">
                       {[
-                        // Original 20 emojis
                         '📁', '💼', '🏃‍♂️', '💰', '🎯', '📚', '⚡', '💡', '🔥', '🍎',
                         '💻', '🛠️', '🎨', '✈️', '🛒', '🧘‍♂️', '🚀', '⭐', '❤️', '📅',
-                        // 30 requested & diverse new emojis (5 columns layout)
                         '⛽', '💇‍♂️', '🛌', '⏰', '🧹', '🔧', '🍿', '🙏', '🍔', '💧',
-                        '💊', '☕', '🚗', '💊', '🧠', '📊', '📈', '🏠', '🎮', '🎵',
-                        '🐶', '🐱', '☀️', '🌙', '🎁', '📌', '🏋️‍♂️', '🥗', '🍻', '💊'
-                      ].filter((emoji, index, self) => self.indexOf(emoji) === index).map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => {
-                            setIcon(emoji);
-                            setShowEmojiPicker(false);
-                          }}
-                          className="h-9 flex items-center justify-center hover:bg-blue-50 rounded-lg text-xl transition-colors cursor-pointer"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
+                        '💊', '☕', '🚗', '🧠', '📊', '📈', '🏠', '🎮', '🎵',
+                        '🐶', '🐱', '☀️', '🌙', '🎁', '📌', '🏋️‍♂️', '🥗', '🍻',
+                      ]
+                        .filter((emoji, index, self) => self.indexOf(emoji) === index)
+                        .map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => {
+                              setIcon(emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            className="h-9 flex items-center justify-center hover:bg-blue-50 rounded-lg text-xl transition-colors cursor-pointer"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
                     </div>
                   )}
                 </div>
@@ -470,8 +525,12 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
               {/* Custom Fields Section with Natural UX Flow */}
               <div className="space-y-3 pt-2">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">Custom Fields & Types</span>
-                  <p className="text-[11px] text-gray-400">Define the attributes you want to track for this category.</p>
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
+                    Custom Fields & Types
+                  </span>
+                  <p className="text-[11px] text-gray-400">
+                    Define the attributes you want to track for this category.
+                  </p>
                 </div>
 
                 {/* Existing Fields List */}
@@ -481,7 +540,10 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                   );
 
                   return (
-                    <div key={idx} className="p-3.5 sm:p-4 bg-white border border-blue-100 rounded-2xl space-y-3 shadow-2xs box-border">
+                    <div
+                      key={idx}
+                      className="p-3.5 sm:p-4 bg-white border border-blue-100 rounded-2xl space-y-3 shadow-2xs box-border"
+                    >
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 box-border">
                         <input
                           type="text"
@@ -512,7 +574,11 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                                 ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                                 : 'bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-blue-500'
                             }`}
-                            title={isExistingField ? 'Field type cannot be changed once created to preserve analytics consistency' : 'Field Type'}
+                            title={
+                              isExistingField
+                                ? 'Field type cannot be changed once created to preserve analytics consistency'
+                                : 'Field Type'
+                            }
                           >
                             <option value="text">Text</option>
                             <option value="number">Number</option>
@@ -571,9 +637,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                         </label>
 
                         {isExistingField && (
-                          <span className="text-[10px] text-gray-400 italic">
-                            🔒 Type locked
-                          </span>
+                          <span className="text-[10px] text-gray-400 italic">🔒 Type locked</span>
                         )}
                       </div>
                     </div>

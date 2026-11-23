@@ -4,6 +4,7 @@ import dbConnect from '@/lib/mongodb';
 import { Log } from '@/lib/models/Log';
 import { Category } from '@/lib/models/Category';
 import { revalidatePath } from 'next/cache';
+import { Types } from 'mongoose';
 
 interface CreateLogInput {
   userId: string;
@@ -188,7 +189,9 @@ export async function getFilteredLogs({
     const query: any = { userId };
 
     if (categoryId) {
-      query.categoryId = categoryId;
+      query.categoryId = Types.ObjectId.isValid(categoryId)
+        ? new Types.ObjectId(categoryId)
+        : categoryId;
     }
 
     if (tags && tags.length > 0) {

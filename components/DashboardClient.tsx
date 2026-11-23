@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import FilterBar from '@/components/FilterBar';
 import LogCard, { LogItem } from '@/components/LogCard';
@@ -38,6 +38,20 @@ export default function DashboardClient({
   const [editingLog, setEditingLog] = useState<LogItem | null>(null);
 
   const activeSearch = debouncedSearchQuery || urlSearchQuery;
+  const requestSeqRef = useRef(0);
+  const hasInitializedRef = useRef(false);
+
+  const filtersRef = useRef({
+    selectedCategory: '',
+    selectedTags: [] as string[],
+    activeSearch: '',
+  });
+
+  filtersRef.current = {
+    selectedCategory,
+    selectedTags,
+    activeSearch,
+  };
 
   // Debounce search input by 250ms before querying the backend
   useEffect(() => {
@@ -57,42 +71,139 @@ export default function DashboardClient({
     }
   }, [userId]);
 
-  const loadData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [fetchedCats, fetchedLogs] = await Promise.all([
-        getUserCategories(userId),
-        getFilteredLogs({
-          userId,
-          categoryId: selectedCategory || undefined,
-          tags: selectedTags.length > 0 ? selectedTags : undefined,
-          searchQuery: activeSearch.trim() || undefined,
-        }),
-      ]);
+  const filterLogsAgainstState = useCallback(
+    (items: any[], cat: string, tags: string[], search: string) => {
+      const normalizedCat = cat.trim();
+      const q = search.trim().toLowerCase();
 
-      setCategories(fetchedCats || []);
-      setLogs(fetchedLogs || []);
+      return (items || []).filter((log: any) => {
+        if (normalizedCat) {
+          const rawLogCatId =
+            typeof log.categoryId === 'string'
+              ? log.categoryId
+              : log.categoryId?._id || log.categoryId?.toString() || '';
+          if (String(rawLogCatId).trim() !== normalizedCat) {
+            return false;
+          }
+        }
+
+        if (tags.length > 0) {
+          const logTags = Array.isArray(log.tags) ? log.tags : [];
+          if (!tags.every((t) => logTags.includes(t))) {
+            return false;
+          }
+        }
+
+        if (q) {
+          const inTitle = typeof log.title === 'string' && log.title.toLowerCase().includes(q);
+          const inNotes = typeof log.notes === 'string' && log.notes.toLowerCase().includes(q);
+          const inCatName =
+            typeof log.categoryName === 'string' && log.categoryName.toLowerCase().includes(q);
+          const inTags =
+            Array.isArray(log.tags) &&
+            log.tags.some((t: unknown) => String(t).toLowerCase().includes(q));
+          const inAttrs =
+            log.attributes &&
+            typeof log.attributes === 'object' &&
+            Object.entries(log.attributes).some(
+              ([k, v]) =>
+                k.replace(/_/g, ' ').toLowerCase().includes(q) ||
+                (v !== undefined && v !== null && String(v).toLowerCase().includes(q))
+            );
+
+          if (!inTitle && !inNotes && !inCatName && !inTags && !inAttrs) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    },
+    []
+  );
+
+  // Refresh only filtered logs while preserving active filter and search states
+  const refreshLogs = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
+    const { selectedCategory: cat, selectedTags: tags, activeSearch: search } = filtersRef.current;
+
+    try {
+      const filteredLogs = await getFilteredLogs({
+        userId,
+        categoryId: cat || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+        searchQuery: search.trim() || undefined,
+      });
+
+      if (seq !== requestSeqRef.current) return;
+
+      const strictlyFiltered = filterLogsAgainstState(filteredLogs || [], cat, tags, search);
+      setLogs(strictlyFiltered);
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      if (seq !== requestSeqRef.current) return;
+      console.error('Failed to refresh logs:', error);
     } finally {
-      setIsLoading(false);
+      if (seq === requestSeqRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [selectedCategory, selectedTags, activeSearch, userId]);
+  }, [userId, filterLogsAgainstState]);
+
+  const loadData = useCallback(
+    async (showSpinner = true) => {
+      const seq = ++requestSeqRef.current;
+      const { selectedCategory: cat, selectedTags: tags, activeSearch: search } = filtersRef.current;
+
+      try {
+        if (showSpinner) setIsLoading(true);
+        const [fetchedCats, fetchedLogs] = await Promise.all([
+          getUserCategories(userId),
+          getFilteredLogs({
+            userId,
+            categoryId: cat || undefined,
+            tags: tags.length > 0 ? tags : undefined,
+            searchQuery: search.trim() || undefined,
+          }),
+        ]);
+
+        if (seq !== requestSeqRef.current) return;
+
+        setCategories(fetchedCats || []);
+        setLogs(filterLogsAgainstState(fetchedLogs || [], cat, tags, search));
+      } catch (error) {
+        if (seq !== requestSeqRef.current) return;
+        console.error('Failed to load dashboard data:', error);
+      } finally {
+        if (showSpinner) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [userId, filterLogsAgainstState]
+  );
 
   useEffect(() => {
     setCategories(initialCategories);
   }, [initialCategories]);
 
   useEffect(() => {
-    setLogs(initialLogs);
+    if (!hasInitializedRef.current && initialLogs.length > 0) {
+      setLogs(initialLogs);
+    }
   }, [initialLogs]);
 
+  // Initial load + global window events
   useEffect(() => {
-    loadData();
+    hasInitializedRef.current = true;
+    loadData(true);
 
-    const handleDataRefresh = () => {
+    const handleLogRefresh = () => {
+      refreshLogs();
+    };
+
+    const handleCategoryRefresh = () => {
       loadCategories();
-      loadData();
+      refreshLogs();
     };
 
     const handleEditLogEvent = (e: Event) => {
@@ -102,16 +213,22 @@ export default function DashboardClient({
       }
     };
 
-    window.addEventListener('logCreated', handleDataRefresh);
-    window.addEventListener('categoryCreated', handleDataRefresh);
+    window.addEventListener('logCreated', handleLogRefresh);
+    window.addEventListener('categoryCreated', handleCategoryRefresh);
     window.addEventListener('editLog', handleEditLogEvent as EventListener);
 
     return () => {
-      window.removeEventListener('logCreated', handleDataRefresh);
-      window.removeEventListener('categoryCreated', handleDataRefresh);
+      window.removeEventListener('logCreated', handleLogRefresh);
+      window.removeEventListener('categoryCreated', handleCategoryRefresh);
       window.removeEventListener('editLog', handleEditLogEvent as EventListener);
     };
-  }, [loadData, loadCategories]);
+  }, [loadData, loadCategories, refreshLogs]);
+
+  // Re-query filtered logs whenever category, tags, or search changes
+  useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    refreshLogs();
+  }, [selectedCategory, selectedTags, activeSearch, refreshLogs]);
 
   const handleSaveLog = async (payload: any, isEditing: boolean, logId?: string) => {
     if (isEditing && logId) {
@@ -120,10 +237,10 @@ export default function DashboardClient({
       await createLog({ ...payload, userId });
     }
     router.refresh();
-    loadData();
+    await refreshLogs();
   };
 
-  const handleCreateCategory = async (catData: any): Promise<void> => {
+  const handleCreateCategory = async (catData: any): Promise<any> => {
     const result: any = await createCategory(catData);
 
     if (result && result.categoryId) {
@@ -143,7 +260,8 @@ export default function DashboardClient({
     window.dispatchEvent(new CustomEvent('categoryCreated'));
     router.refresh();
     await loadCategories();
-    loadData();
+    await refreshLogs();
+    return result;
   };
 
   const addTagFilter = (tag: string) => {
@@ -164,8 +282,8 @@ export default function DashboardClient({
 
     if (urlSearchQuery) {
       window.history.pushState({}, '', '/dashboard');
-      loadData();
     }
+    refreshLogs();
   };
 
   const handleDeleteLog = async (id: string) => {
@@ -248,6 +366,7 @@ export default function DashboardClient({
                   onEdit={(item) => setEditingLog(item)}
                   onDelete={handleDeleteLog}
                   onTagClick={addTagFilter}
+                  onSuccess={refreshLogs}
                 />
               ))}
           </div>
@@ -272,7 +391,8 @@ export default function DashboardClient({
         initialData={editingLog}
         onSaveLog={handleSaveLog}
         onCreateCategory={handleCreateCategory}
-        onSuccess={loadData}
+        onCategoriesRefresh={loadCategories}
+        onSuccess={() => refreshLogs()}
       />
     </div>
   );

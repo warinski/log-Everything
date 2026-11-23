@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Trash2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Trash2, AlertCircle, Calculator } from 'lucide-react';
 import { LogItem } from '@/components/LogCard';
+import InlineFieldCalculator from '@/components/InlineFieldCalculator';
+import { getUserCategories } from '@/lib/actions/categoryActions';
 
 export interface CategoryTemplate {
   _id: string;
@@ -27,8 +29,9 @@ interface LogModalProps {
   userId: string;
   initialData?: LogItem | null;
   onSaveLog: (logData: any, isEditing: boolean, logId?: string) => Promise<void>;
-  onCreateCategory: (catData: any) => Promise<void>;
+  onCreateCategory: (catData: any) => Promise<any>;
   onSuccess: () => void;
+  onCategoriesRefresh?: () => Promise<void> | void;
 }
 
 export default function LogModal({
@@ -40,12 +43,15 @@ export default function LogModal({
   onSaveLog,
   onCreateCategory,
   onSuccess,
+  onCategoriesRefresh,
 }: LogModalProps) {
   const [title, setTitle] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [notes, setNotes] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [dynamicAttributes, setDynamicAttributes] = useState<Record<string, any>>({});
+  const [openCalcFieldKey, setOpenCalcFieldKey] = useState<string | null>(null);
+  const [modalCategories, setModalCategories] = useState<CategoryTemplate[]>(categories || []);
 
   // Category creation toggle, emoji, color, & fields state
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -61,6 +67,42 @@ export default function LogModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const syncCategoriesFromServer = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const latest = await getUserCategories(userId);
+      if (Array.isArray(latest)) {
+        setModalCategories(latest);
+      }
+    } catch (err) {
+      console.error('Failed to sync categories in LogModal:', err);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    setModalCategories(categories || []);
+  }, [categories]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    syncCategoriesFromServer();
+
+    const handleCategoryCreated = () => {
+      syncCategoriesFromServer();
+      if (onCategoriesRefresh) {
+        Promise.resolve(onCategoriesRefresh()).catch((err) =>
+          console.error('Failed to refresh parent categories:', err)
+        );
+      }
+    };
+
+    window.addEventListener('categoryCreated', handleCategoryCreated);
+    return () => {
+      window.removeEventListener('categoryCreated', handleCategoryCreated);
+    };
+  }, [isOpen, syncCategoriesFromServer, onCategoriesRefresh]);
+
   useEffect(() => {
     if (initialData) {
       setTitle(initialData.title || '');
@@ -75,6 +117,7 @@ export default function LogModal({
       setTagsInput('');
       setDynamicAttributes({});
     }
+    setOpenCalcFieldKey(null);
     setIsCreatingCategory(false);
     setShowEmojiPicker(false);
     setFormError(null);
@@ -82,7 +125,10 @@ export default function LogModal({
 
   if (!isOpen) return null;
 
-  const activeCategoryTemplate = categories.find((c) => c._id === selectedCategory);
+  const sortedCategories = [...modalCategories].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '')
+  );
+  const activeCategoryTemplate = sortedCategories.find((c) => c._id === selectedCategory);
 
   const handleAddFieldToNewCategory = () => {
     setNewFields([...newFields, { label: '', type: 'text', required: true, optionsString: '' }]);
@@ -112,13 +158,31 @@ export default function LogModal({
             : undefined,
       }));
 
-      await onCreateCategory({
+      const createdResult = await onCreateCategory({
         userId,
         name: newCatName.trim(),
         icon: newCatIcon,
         color: newCatColor,
         fields: formattedFields,
       });
+
+      const createdId = createdResult?.categoryId || createdResult?._id;
+      if (createdId) {
+        setModalCategories((prev) => {
+          if (prev.some((c) => c._id === createdId)) return prev;
+          return [
+            ...prev,
+            {
+              _id: createdId,
+              name: newCatName.trim(),
+              icon: newCatIcon,
+              color: newCatColor,
+              fields: formattedFields,
+            },
+          ];
+        });
+        setSelectedCategory(createdId);
+      }
 
       setNewCatName('');
       setNewCatIcon('📁');
@@ -127,6 +191,10 @@ export default function LogModal({
       setIsCreatingCategory(false);
       setShowEmojiPicker(false);
 
+      await syncCategoriesFromServer();
+      if (onCategoriesRefresh) {
+        await onCategoriesRefresh();
+      }
       window.dispatchEvent(new CustomEvent('categoryCreated'));
       onSuccess();
     } catch (err: any) {
@@ -235,13 +303,14 @@ export default function LogModal({
                 onChange={(e) => {
                   setSelectedCategory(e.target.value);
                   setDynamicAttributes({});
+                  setOpenCalcFieldKey(null);
                   if (formError) setFormError(null);
                 }}
                 style={{ fontSize: '16px' }}
                 className="w-full px-3.5 py-2.5 bg-white border border-blue-100 rounded-xl text-gray-900 focus:outline-none focus:border-blue-500 text-xs sm:text-sm cursor-pointer"
               >
                 <option value="">General (Default)</option>
-                {categories.map((cat) => (
+                {sortedCategories.map((cat) => (
                   <option key={cat._id} value={cat._id}>
                     {cat.icon ? `${cat.icon} ${cat.name}` : cat.name}
                   </option>
@@ -253,6 +322,7 @@ export default function LogModal({
                   type="button"
                   onClick={() => {
                     setIsCreatingCategory(true);
+                    setOpenCalcFieldKey(null);
                     setFormError(null);
                   }}
                   className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
@@ -482,6 +552,8 @@ export default function LogModal({
                 const fieldLabel = field.label || field.name || 'Field';
                 const fieldKey = field.name || fieldLabel.toLowerCase().replace(/\s+/g, '_');
                 const fieldType = field.fieldType || field.type || 'text';
+                const supportsCalc = fieldType === 'number' || fieldType === 'currency';
+                const isCalcOpen = openCalcFieldKey === fieldKey;
 
                 return (
                   <div key={fieldKey} className="space-y-1">
@@ -519,12 +591,73 @@ export default function LogModal({
                           </option>
                         ))}
                       </select>
+                    ) : supportsCalc ? (
+                      <>
+                        <div className="relative flex items-center">
+                          <input
+                            type={fieldType === 'currency' ? 'text' : 'number'}
+                            step={fieldType === 'number' ? 'any' : undefined}
+                            required={field.required}
+                            value={
+                              dynamicAttributes[fieldKey] !== undefined
+                                ? dynamicAttributes[fieldKey]
+                                : ''
+                            }
+                            onChange={(e) => {
+                              setDynamicAttributes({
+                                ...dynamicAttributes,
+                                [fieldKey]: e.target.value,
+                              });
+                              if (formError) setFormError(null);
+                            }}
+                            style={{ fontSize: '16px' }}
+                            className="w-full pl-3.5 pr-10 py-2 bg-white border border-blue-100 focus:border-blue-500 focus:outline-none rounded-xl text-xs sm:text-sm"
+                            placeholder={`Enter ${fieldLabel.toLowerCase()}...`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenCalcFieldKey((prev) => (prev === fieldKey ? null : fieldKey))
+                            }
+                            title={`Toggle calculator for ${fieldLabel}`}
+                            aria-label={`Toggle calculator for ${fieldLabel}`}
+                            className={`absolute right-2 p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              isCalcOpen
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                            }`}
+                          >
+                            <Calculator className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {isCalcOpen && (
+                          <InlineFieldCalculator
+                            fieldLabel={fieldLabel}
+                            initialValue={dynamicAttributes[fieldKey]}
+                            isCurrency={fieldType === 'currency'}
+                            onApply={(resultValue) => {
+                              const formattedValue =
+                                fieldType === 'currency'
+                                  ? resultValue.toLocaleString('en-US', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })
+                                  : resultValue;
+                              setDynamicAttributes((prev) => ({
+                                ...prev,
+                                [fieldKey]: formattedValue,
+                              }));
+                              if (formError) setFormError(null);
+                            }}
+                            onClose={() => setOpenCalcFieldKey(null)}
+                          />
+                        )}
+                      </>
                     ) : (
                       <input
                         type={
-                          fieldType === 'number' || fieldType === 'currency'
-                            ? 'number'
-                            : fieldType === 'date'
+                          fieldType === 'date'
                             ? 'date'
                             : fieldType === 'time'
                             ? 'time'
