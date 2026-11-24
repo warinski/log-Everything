@@ -27,19 +27,20 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        // 🔍 Map technical NextAuth error codes to user-friendly feedback
+        // Map technical NextAuth error codes to user-friendly feedback
         if (result.error === 'CredentialsSignin' || result.error === 'Callback') {
           setError('Invalid email or password. Please check your credentials and try again.');
         } else {
           setError('Invalid email or password. Please check your credentials and try again.');
         }
-      } else {
-        router.push('/dashboard');
-        router.refresh();
+        setIsLoading(false);
+        return;
       }
+
+      router.push('/dashboard');
+      router.refresh();
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -119,7 +120,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+            className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:hover:bg-blue-600 text-white font-semibold rounded-lg text-xs transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
