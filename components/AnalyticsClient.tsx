@@ -5,17 +5,28 @@ import { Download, FileSpreadsheet, FileJson } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getFilteredLogs } from '@/lib/actions/logActions';
 import { getUserCategories } from '@/lib/actions/categoryActions';
+import {
+  getSavedViews,
+  createSavedView,
+  updateSavedView,
+  renameSavedView,
+  deleteSavedView,
+  restoreSavedView,
+} from '@/lib/actions/savedViewActions';
 import { LogItem } from '@/components/LogCard';
 import { CategoryTemplate } from '@/components/LogModal';
+import SavedViewsBar from '@/components/analytics/SavedViewsBar';
 import AnalyticsFilters from '@/components/analytics/AnalyticsFilters';
 import SummaryCardsSection from '@/components/analytics/SummaryCardsSection';
 import AnalyticsDataTable, { SortConfig } from '@/components/analytics/AnalyticsDataTable';
+import { AnalyticsCardKey, SavedAnalyticsView } from '@/lib/analytics/savedViews';
 import {
   discoverDynamicColumns,
   computeAggregates,
   buildPieSlices,
   parseNumeric,
 } from '@/lib/analytics/aggregations';
+import { TrendGranularity } from '@/lib/analytics/timelineTrend';
 
 interface AnalyticsClientProps {
   userId: string;
@@ -31,6 +42,17 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
 
+  const [savedViews, setSavedViews] = useState<SavedAnalyticsView[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [lastAppliedViewId, setLastAppliedViewId] = useState<string | null>(null);
+  const [deletedView, setDeletedView] = useState<SavedAnalyticsView | null>(null);
+
+  const [timelineGranularity, setTimelineGranularity] = useState<TrendGranularity>('day');
+  const [timelineMetricKey, setTimelineMetricKey] = useState<string>('__count__');
+  const [breakdownFieldKey, setBreakdownFieldKey] = useState<string>('');
+  const [breakdownMetricKey, setBreakdownMetricKey] = useState<string>('');
+  const [hiddenCardKeys, setHiddenCardKeys] = useState<AnalyticsCardKey[]>([]);
+
   const [selectedPieFieldKey, setSelectedPieFieldKey] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const rowsPerPage = 10;
@@ -43,12 +65,14 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [fetchedCats, fetchedLogs] = await Promise.all([
+      const [fetchedCats, fetchedLogs, fetchedViews] = await Promise.all([
         getUserCategories(userId),
         getFilteredLogs({ userId }),
+        getSavedViews(userId),
       ]);
       setCategories(fetchedCats || []);
       setLogs(fetchedLogs || []);
+      setSavedViews(fetchedViews || []);
     } catch (error) {
       console.error('Failed to load analytics data:', error);
     } finally {
@@ -66,6 +90,147 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
       window.removeEventListener('categoryCreated', handleRefresh);
     };
   }, [loadData]);
+
+  const buildCurrentViewPayload = useCallback(
+    () => ({
+      selectedCategory: selectedCategories.join(','),
+      selectedCategories,
+      searchQuery,
+      dateFrom,
+      dateTo,
+      sortConfigs,
+      pieFieldKey: selectedPieFieldKey,
+      timelineGranularity,
+      timelineMetricKey,
+      breakdownFieldKey,
+      breakdownMetricKey,
+      hiddenCardKeys,
+    }),
+    [
+      selectedCategories,
+      searchQuery,
+      dateFrom,
+      dateTo,
+      sortConfigs,
+      selectedPieFieldKey,
+      timelineGranularity,
+      timelineMetricKey,
+      breakdownFieldKey,
+      breakdownMetricKey,
+      hiddenCardKeys,
+    ]
+  );
+
+  const handleSaveCurrentView = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      try {
+        const createdView = await createSavedView({
+          userId,
+          name: trimmed,
+          ...buildCurrentViewPayload(),
+        });
+        setSavedViews((prev) => [createdView, ...prev]);
+        setActiveViewId(createdView.id);
+        setLastAppliedViewId(createdView.id);
+      } catch (error) {
+        console.error('Failed to save view:', error);
+      }
+    },
+    [userId, buildCurrentViewPayload]
+  );
+
+  const handleUpdateView = useCallback(
+    async (id: string) => {
+      try {
+        const updatedView = await updateSavedView(id, userId, buildCurrentViewPayload());
+        setSavedViews((prev) => prev.map((v) => (v.id === id ? updatedView : v)));
+        setActiveViewId(updatedView.id);
+        setLastAppliedViewId(updatedView.id);
+      } catch (error) {
+        console.error('Failed to update view:', error);
+      }
+    },
+    [userId, buildCurrentViewPayload]
+  );
+
+  const handleRenameView = useCallback(
+    async (id: string, newName: string) => {
+      const trimmed = newName.trim();
+      if (!trimmed) return;
+      try {
+        const updatedView = await renameSavedView(id, userId, trimmed);
+        setSavedViews((prev) => prev.map((v) => (v.id === id ? updatedView : v)));
+      } catch (error) {
+        console.error('Failed to rename view:', error);
+      }
+    },
+    [userId]
+  );
+
+  const handleApplyView = useCallback((view: SavedAnalyticsView) => {
+    if (Array.isArray(view.selectedCategories)) {
+      setSelectedCategories(view.selectedCategories);
+    } else if (view.selectedCategory) {
+      setSelectedCategories(view.selectedCategory.split(',').filter(Boolean));
+    } else {
+      setSelectedCategories([]);
+    }
+
+    setSearchQuery(view.searchQuery || '');
+    setDateFrom(view.dateFrom || '');
+    setDateTo(view.dateTo || '');
+    setSortConfigs(
+      view.sortConfigs && view.sortConfigs.length > 0
+        ? (view.sortConfigs as SortConfig[])
+        : [{ key: 'timestamp', direction: 'desc' }]
+    );
+    setSelectedPieFieldKey(view.pieFieldKey || '');
+    setTimelineGranularity(view.timelineGranularity || 'day');
+    setTimelineMetricKey(view.timelineMetricKey || '__count__');
+    setBreakdownFieldKey(view.breakdownFieldKey || '');
+    setBreakdownMetricKey(view.breakdownMetricKey || '');
+    setHiddenCardKeys(Array.isArray(view.hiddenCardKeys) ? view.hiddenCardKeys : []);
+    setCurrentPage(1);
+    setActiveViewId(view.id);
+    setLastAppliedViewId(view.id);
+  }, []);
+
+  const handleDeleteView = useCallback(
+    async (id: string) => {
+      const targetView = savedViews.find((v) => v.id === id) ?? null;
+      try {
+        await deleteSavedView(id, userId);
+        setSavedViews((prev) => prev.filter((v) => v.id !== id));
+        if (activeViewId === id) {
+          setActiveViewId(null);
+        }
+        if (lastAppliedViewId === id) {
+          setLastAppliedViewId(null);
+        }
+        if (targetView) {
+          setDeletedView(targetView);
+        }
+      } catch (error) {
+        console.error('Failed to delete view:', error);
+      }
+    },
+    [userId, savedViews, activeViewId, lastAppliedViewId]
+  );
+
+  const handleUndoDelete = useCallback(async () => {
+    if (!deletedView) return;
+    const toRestore = deletedView;
+    setDeletedView(null);
+    try {
+      const { id: _oldId, createdAt: _oldCreatedAt, ...payload } = toRestore;
+      const restored = await restoreSavedView(userId, payload);
+      setSavedViews((prev) => [restored, ...prev]);
+    } catch (error) {
+      console.error('Failed to restore saved view:', error);
+    }
+  }, [deletedView, userId]);
 
   const singleCategoryObj = useMemo(
     () =>
@@ -147,6 +312,7 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   );
 
   const handleSort = (key: string, e: React.MouseEvent) => {
+    setActiveViewId(null);
     setSortConfigs((prev) => {
       const existingIndex = prev.findIndex((s) => s.key === key);
       if (e.shiftKey) {
@@ -246,11 +412,8 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   );
 
   useEffect(() => {
-    if (aggregates.fieldStats.length === 0) {
-      setSelectedPieFieldKey('');
-      return;
-    }
-    if (!aggregates.fieldStats.some((f) => f.key === selectedPieFieldKey)) {
+    if (aggregates.fieldStats.length === 0) return;
+    if (!selectedPieFieldKey || !aggregates.fieldStats.some((f) => f.key === selectedPieFieldKey)) {
       setSelectedPieFieldKey(aggregates.fieldStats[0].key);
     }
   }, [aggregates.fieldStats, selectedPieFieldKey]);
@@ -364,27 +527,6 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
 
   return (
     <div className="max-w-7xl mx-auto flex flex-col space-y-4 px-2 sm:px-4 pb-12">
-      {/* <style jsx>{`
-        .analytics-scrollbar {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
-        }
-        .analytics-scrollbar::-webkit-scrollbar {
-          width: 5px;
-          height: 5px;
-        }
-        .analytics-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .analytics-scrollbar::-webkit-scrollbar-thumb {
-          background-color: rgba(148, 163, 184, 0.35);
-          border-radius: 9999px;
-        }
-        .analytics-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(148, 163, 184, 0.6);
-        }
-      `}</style> */}
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
           Insights & Analytics
@@ -415,30 +557,56 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         </div>
       </div>
 
+      <SavedViewsBar
+        views={savedViews}
+        activeViewId={activeViewId}
+        lastAppliedViewId={lastAppliedViewId}
+        deletedView={deletedView}
+        onApplyView={handleApplyView}
+        onSaveCurrentView={handleSaveCurrentView}
+        onUpdateView={handleUpdateView}
+        onRenameView={handleRenameView}
+        onDeleteView={handleDeleteView}
+        onUndoDelete={handleUndoDelete}
+        onDismissUndoToast={() => setDeletedView(null)}
+      />
+
       <AnalyticsFilters
         categories={categories}
         selectedCategories={selectedCategories}
         onToggleCategory={(id) => {
           if (!id) return;
+          setActiveViewId(null);
           setSelectedCategories((prev) =>
             prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
           );
           setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
         }}
         onSelectAllCategories={() => {
+          setActiveViewId(null);
           setSelectedCategories(categories.map((c) => c._id).filter(Boolean));
           setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
         }}
         onClearCategories={() => {
+          setActiveViewId(null);
           setSelectedCategories([]);
           setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
         }}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={(val) => {
+          setActiveViewId(null);
+          setSearchQuery(val);
+        }}
         dateFrom={dateFrom}
-        onDateFromChange={setDateFrom}
+        onDateFromChange={(val) => {
+          setActiveViewId(null);
+          setDateFrom(val);
+        }}
         dateTo={dateTo}
-        onDateToChange={setDateTo}
+        onDateToChange={(val) => {
+          setActiveViewId(null);
+          setDateTo(val);
+        }}
       />
 
       <SummaryCardsSection
@@ -450,7 +618,37 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         pieSlices={pieSlices}
         activePieField={activePieField}
         selectedPieFieldKey={selectedPieFieldKey}
-        onSelectPieField={setSelectedPieFieldKey}
+        onSelectPieField={(key) => {
+          setActiveViewId(null);
+          setSelectedPieFieldKey(key);
+        }}
+        filteredLogs={filteredLogs}
+        categories={categories}
+        timelineGranularity={timelineGranularity}
+        onTimelineGranularityChange={(val) => {
+          setActiveViewId(null);
+          setTimelineGranularity(val);
+        }}
+        timelineMetricKey={timelineMetricKey}
+        onTimelineMetricChange={(val) => {
+          setActiveViewId(null);
+          setTimelineMetricKey(val);
+        }}
+        breakdownFieldKey={breakdownFieldKey}
+        onBreakdownFieldChange={(val) => {
+          setActiveViewId(null);
+          setBreakdownFieldKey(val);
+        }}
+        breakdownMetricKey={breakdownMetricKey}
+        onBreakdownMetricChange={(val) => {
+          setActiveViewId(null);
+          setBreakdownMetricKey(val);
+        }}
+        hiddenCardKeys={hiddenCardKeys}
+        onHiddenCardKeysChange={(nextHidden) => {
+          setActiveViewId(null);
+          setHiddenCardKeys(nextHidden);
+        }}
       />
 
       <AnalyticsDataTable
