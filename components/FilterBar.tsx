@@ -21,21 +21,23 @@ interface FilterBarProps {
   onClearAll: () => void;
 }
 
-function FilterResetIcon({ className = 'w-5 h-5' }: { className?: string }) {
+function FilterResetIcon({ className = 'w-6 h-6' }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 28 28"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.1"
+      strokeWidth="1.35"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
       aria-hidden="true"
     >
-      <path d="M2.5 5h10.5l-4 5v6.5l-2.5-1V10l-4-5Z" />
-      <path d="M13.5 11.5a4.5 4.5 0 1 1-1.2 4.3" />
-      <path d="M12.5 9.5v3h3" />
+      {/* Filter funnel on the left */}
+      <path d="M3 6h12.2l-4.6 5.8v7.6l-2.9-1.2v-6.4L3 6Z" />
+      {/* Counter-clockwise reset arc & arrow on the right */}
+      <path d="M15.8 13.5a5.2 5.2 0 1 1-1.4 5" />
+      <path d="M14.6 11.2v3.5h3.5" />
     </svg>
   );
 }
@@ -108,7 +110,7 @@ export default function FilterBar({
               aria-label="Reset category filter"
               className="h-10 px-1.5 inline-flex items-center justify-center text-gray-500 hover:text-blue-600 transition-colors shrink-0 cursor-pointer"
             >
-              <FilterResetIcon className="w-5 h-5" />
+              <FilterResetIcon className="w-6 h-6" />
             </button>
           )}
         </div>

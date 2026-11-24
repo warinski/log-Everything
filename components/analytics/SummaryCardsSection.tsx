@@ -8,6 +8,7 @@ import {
   PieChart as PieChartIcon,
   LayoutGrid,
   Check,
+  Maximize2,
 } from 'lucide-react';
 import {
   CategoryBreakdownItem,
@@ -19,6 +20,14 @@ import { TrendGranularity } from '@/lib/analytics/timelineTrend';
 import { AnalyticsCardKey } from '@/lib/analytics/savedViews';
 import TimelineTrendCard from '@/components/analytics/TimelineTrendCard';
 import FieldBreakdownCard from '@/components/analytics/FieldBreakdownCard';
+
+export type ExpandedCardTarget =
+  | { cardKey: 'matching_logs' }
+  | { cardKey: 'field_stats'; fieldKey: string }
+  | { cardKey: 'category_share' }
+  | { cardKey: 'timeline_trend' }
+  | { cardKey: 'field_breakdown' }
+  | null;
 
 interface SummaryCardsSectionProps {
   isMultiCategoryScope: boolean;
@@ -42,6 +51,7 @@ interface SummaryCardsSectionProps {
   onBreakdownMetricChange?: (metricKey: string) => void;
   hiddenCardKeys?: AnalyticsCardKey[];
   onHiddenCardKeysChange?: (hiddenKeys: AnalyticsCardKey[]) => void;
+  onExpandCard?: (target: ExpandedCardTarget) => void;
 }
 
 const CARD_ROW_CAP_CLASS = 'h-full max-h-[380px]';
@@ -94,6 +104,29 @@ function describePieSlice(
   ].join(' ');
 }
 
+function ExpandCardButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      title={`Expand ${label}`}
+      aria-label={`Expand ${label}`}
+      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50/80 rounded-md transition-colors cursor-pointer shrink-0"
+    >
+      <Maximize2 className="w-3.5 h-3.5" />
+    </button>
+  );
+}
+
 export default function SummaryCardsSection({
   isMultiCategoryScope,
   totalLogs,
@@ -116,6 +149,7 @@ export default function SummaryCardsSection({
   onBreakdownMetricChange,
   hiddenCardKeys: hiddenCardKeysProp,
   onHiddenCardKeysChange,
+  onExpandCard,
 }: SummaryCardsSectionProps) {
   const [hoveredSliceIndex, setHoveredSliceIndex] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -270,11 +304,19 @@ export default function SummaryCardsSection({
               className={`bg-white border border-blue-100 rounded-2xl p-4 shadow-2xs flex flex-col min-w-0 overflow-hidden ${CARD_ROW_CAP_CLASS}`}
             >
               <div className="shrink-0">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-gray-500 uppercase truncate">
                     Matching Logs
                   </span>
-                  <Layers className="w-4 h-4 text-blue-500 shrink-0" />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Layers className="w-4 h-4 text-blue-500 shrink-0" />
+                    {onExpandCard && (
+                      <ExpandCardButton
+                        label="Matching Logs"
+                        onClick={() => onExpandCard({ cardKey: 'matching_logs' })}
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 min-w-0">
                   <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 truncate block">
@@ -330,9 +372,19 @@ export default function SummaryCardsSection({
                       )}
                       <span className="truncate">{stat.label}</span>
                     </span>
-                    <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 shrink-0 whitespace-nowrap">
-                      n = {stat.count}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 shrink-0 whitespace-nowrap">
+                        n = {stat.count}
+                      </span>
+                      {onExpandCard && (
+                        <ExpandCardButton
+                          label={stat.label}
+                          onClick={() =>
+                            onExpandCard({ cardKey: 'field_stats', fieldKey: stat.key })
+                          }
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {stat.type === 'boolean' ? (
@@ -440,21 +492,32 @@ export default function SummaryCardsSection({
                   <PieChartIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                   <span>Category Share</span>
                 </span>
-                {fieldStats.length > 1 && (
-                  <select
-                    value={selectedPieFieldKey}
-                    onChange={(e) => onSelectPieField(e.target.value)}
-                    aria-label="Pie chart metric"
-                    style={{ fontSize: '12px' }}
-                    className="h-7 text-xs font-semibold bg-blue-50/70 border border-blue-100 rounded-lg px-2 py-0 text-blue-700 focus:outline-none focus:border-blue-400 cursor-pointer max-w-[140px] truncate shrink-0"
-                  >
-                    {fieldStats.map((f) => (
-                      <option key={f.key} value={f.key}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <div className="flex items-center gap-1 shrink-0">
+                  {fieldStats.length > 1 && (
+                    <select
+                      value={selectedPieFieldKey}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onSelectPieField(e.target.value);
+                      }}
+                      aria-label="Pie chart metric"
+                      style={{ fontSize: '12px' }}
+                      className="h-7 text-xs font-semibold bg-blue-50/70 border border-blue-100 rounded-lg px-2 py-0 text-blue-700 focus:outline-none focus:border-blue-400 cursor-pointer max-w-[140px] truncate shrink-0"
+                    >
+                      {fieldStats.map((f) => (
+                        <option key={f.key} value={f.key}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {onExpandCard && (
+                    <ExpandCardButton
+                      label="Category Share"
+                      onClick={() => onExpandCard({ cardKey: 'category_share' })}
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-center py-1 shrink-0">
@@ -535,29 +598,49 @@ export default function SummaryCardsSection({
 
           {/* Timeline Trend Card */}
           {isTimelineTrendVisible && (
-            <TimelineTrendCard
-              logs={filteredLogs}
-              fieldStats={fieldStats}
-              cardHeightClass={CARD_ROW_CAP_CLASS}
-              granularity={timelineGranularity}
-              onGranularityChange={onTimelineGranularityChange}
-              selectedMetricKey={timelineMetricKey}
-              onMetricChange={onTimelineMetricChange}
-            />
+            <div className="relative min-w-0">
+              {onExpandCard && (
+                <div className="absolute top-3.5 right-3.5 z-10">
+                  <ExpandCardButton
+                    label="Timeline Trend"
+                    onClick={() => onExpandCard({ cardKey: 'timeline_trend' })}
+                  />
+                </div>
+              )}
+              <TimelineTrendCard
+                logs={filteredLogs}
+                fieldStats={fieldStats}
+                cardHeightClass={CARD_ROW_CAP_CLASS}
+                granularity={timelineGranularity}
+                onGranularityChange={onTimelineGranularityChange}
+                selectedMetricKey={timelineMetricKey}
+                onMetricChange={onTimelineMetricChange}
+              />
+            </div>
           )}
 
           {/* Per-Field Breakdown Card */}
           {isFieldBreakdownVisible && (
-            <FieldBreakdownCard
-              logs={filteredLogs}
-              fieldStats={fieldStats}
-              categories={categories}
-              cardHeightClass={CARD_ROW_CAP_CLASS}
-              selectedFieldKey={breakdownFieldKey}
-              onSelectedFieldChange={onBreakdownFieldChange}
-              selectedMetricKey={breakdownMetricKey}
-              onSelectedMetricChange={onBreakdownMetricChange}
-            />
+            <div className="relative min-w-0">
+              {onExpandCard && (
+                <div className="absolute top-3.5 right-3.5 z-10">
+                  <ExpandCardButton
+                    label="Field Breakdown"
+                    onClick={() => onExpandCard({ cardKey: 'field_breakdown' })}
+                  />
+                </div>
+              )}
+              <FieldBreakdownCard
+                logs={filteredLogs}
+                fieldStats={fieldStats}
+                categories={categories}
+                cardHeightClass={CARD_ROW_CAP_CLASS}
+                selectedFieldKey={breakdownFieldKey}
+                onSelectedFieldChange={onBreakdownFieldChange}
+                selectedMetricKey={breakdownMetricKey}
+                onSelectedMetricChange={onBreakdownMetricChange}
+              />
+            </div>
           )}
         </div>
       )}

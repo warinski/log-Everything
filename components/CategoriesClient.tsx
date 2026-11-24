@@ -335,6 +335,8 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCategories.map((cat) => {
             const logCount = categoryCounts[cat._id] || 0;
+            const catColor = cat.color || '#2563EB';
+
             return (
               <div
                 key={cat._id}
@@ -345,8 +347,8 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                     <span
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold"
                       style={{
-                        backgroundColor: cat.color ? `${cat.color}15` : '#EFF6FF',
-                        color: cat.color || '#2563EB',
+                        backgroundColor: `${catColor}18`,
+                        color: catColor,
                       }}
                     >
                       <span className="text-lg">{cat.icon || '📁'}</span>
@@ -391,7 +393,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                     </span>
                   </div>
 
-                  {/* Fields list preview */}
+                  {/* Fields list preview with category-colored pill badges */}
                   <div className="space-y-1.5 pt-2 border-t border-blue-50">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
                       Custom Fields ({cat.fields?.length || 0})
@@ -401,10 +403,17 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                         {cat.fields.map((f: any, idx: number) => (
                           <span
                             key={idx}
-                            className="text-[11px] bg-blue-50/70 text-blue-800 px-2 py-0.5 rounded-md font-medium border border-blue-100"
+                            style={{
+                              backgroundColor: `${catColor}14`,
+                              borderColor: `${catColor}55`,
+                              color: catColor,
+                            }}
+                            className="text-[11px] px-2 py-0.5 rounded-md font-medium border"
                           >
                             {f.label || f.name}{' '}
-                            <span className="text-blue-400">({f.fieldType || f.type})</span>
+                            <span style={{ color: `${catColor}B3` }}>
+                              ({f.fieldType || f.type})
+                            </span>
                           </span>
                         ))}
                       </div>
@@ -522,7 +531,7 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
                 </div>
               </div>
 
-              {/* Custom Fields Section with Natural UX Flow */}
+              {/* Custom Fields Section with Original Neutral Colors */}
               <div className="space-y-3 pt-2">
                 <div className="space-y-1">
                   <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Download, FileSpreadsheet, FileJson } from 'lucide-react';
+import { Download, FileSpreadsheet, FileJson, Layers, Clock, PieChart as PieChartIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getFilteredLogs } from '@/lib/actions/logActions';
 import { getUserCategories } from '@/lib/actions/categoryActions';
@@ -19,17 +19,69 @@ import SavedViewsBar from '@/components/analytics/SavedViewsBar';
 import AnalyticsFilters from '@/components/analytics/AnalyticsFilters';
 import SummaryCardsSection from '@/components/analytics/SummaryCardsSection';
 import AnalyticsDataTable, { SortConfig } from '@/components/analytics/AnalyticsDataTable';
+import CardExpandModal from '@/components/analytics/CardExpandModal';
+import TimelineTrendCard from '@/components/analytics/TimelineTrendCard';
+import FieldBreakdownCard from '@/components/analytics/FieldBreakdownCard';
 import { AnalyticsCardKey, SavedAnalyticsView } from '@/lib/analytics/savedViews';
 import {
   discoverDynamicColumns,
   computeAggregates,
   buildPieSlices,
   parseNumeric,
+  formatMetric,
 } from '@/lib/analytics/aggregations';
 import { TrendGranularity } from '@/lib/analytics/timelineTrend';
 
+export type ExpandedCardTarget =
+  | { cardKey: 'matching_logs' }
+  | { cardKey: 'field_stats'; fieldKey: string }
+  | { cardKey: 'category_share' }
+  | { cardKey: 'timeline_trend' }
+  | { cardKey: 'field_breakdown' }
+  | null;
+
 interface AnalyticsClientProps {
   userId: string;
+}
+
+function polarToCartesian(cx: number, cy: number, r: number, angleInDegrees: number) {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+  return {
+    x: cx + r * Math.cos(angleInRadians),
+    y: cy + r * Math.sin(angleInRadians),
+  };
+}
+
+function describePieSlice(
+  cx: number,
+  cy: number,
+  r: number,
+  startAngle: number,
+  endAngle: number
+) {
+  const clampedSweep = Math.min(359.999, Math.max(0, endAngle - startAngle));
+  const actualEnd = startAngle + clampedSweep;
+  const start = polarToCartesian(cx, cy, r, actualEnd);
+  const end = polarToCartesian(cx, cy, r, startAngle);
+  const largeArcFlag = clampedSweep > 180 ? '1' : '0';
+
+  return [
+    'M',
+    cx,
+    cy,
+    'L',
+    end.x,
+    end.y,
+    'A',
+    r,
+    r,
+    0,
+    largeArcFlag,
+    1,
+    start.x,
+    start.y,
+    'Z',
+  ].join(' ');
 }
 
 export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
@@ -52,6 +104,9 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   const [breakdownFieldKey, setBreakdownFieldKey] = useState<string>('');
   const [breakdownMetricKey, setBreakdownMetricKey] = useState<string>('');
   const [hiddenCardKeys, setHiddenCardKeys] = useState<AnalyticsCardKey[]>([]);
+
+  const [expandedCard, setExpandedCard] = useState<ExpandedCardTarget>(null);
+  const [modalHoveredSliceIndex, setModalHoveredSliceIndex] = useState<number | null>(null);
 
   const [selectedPieFieldKey, setSelectedPieFieldKey] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -436,6 +491,53 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
     [isMultiCategoryScope, activePieField, aggregates.categoryBreakdown, aggregates.totalLogs]
   );
 
+  const expandedFieldStat = useMemo(() => {
+    if (!expandedCard || expandedCard.cardKey !== 'field_stats') return undefined;
+    return aggregates.fieldStats.find((f) => f.key === expandedCard.fieldKey);
+  }, [expandedCard, aggregates.fieldStats]);
+
+  const modalTitle = useMemo(() => {
+    if (!expandedCard) return '';
+    switch (expandedCard.cardKey) {
+      case 'matching_logs':
+        return 'Matching Logs';
+      case 'field_stats':
+        return expandedFieldStat?.label || 'Field Stats';
+      case 'category_share':
+        return 'Category Share';
+      case 'timeline_trend':
+        return 'Timeline Trend';
+      case 'field_breakdown':
+        return 'Field Breakdown';
+      default:
+        return 'Analytics Card';
+    }
+  }, [expandedCard, expandedFieldStat]);
+
+  const modalSubtitle = useMemo(() => {
+    if (!expandedCard) return undefined;
+    switch (expandedCard.cardKey) {
+      case 'matching_logs':
+        return `${aggregates.totalLogs} matching logs across ${aggregates.categoryBreakdownCount} ${
+          aggregates.categoryBreakdownCount === 1 ? 'category' : 'categories'
+        }`;
+      case 'field_stats':
+        return expandedFieldStat
+          ? `Sample size n = ${expandedFieldStat.count}`
+          : undefined;
+      case 'category_share':
+        return activePieField
+          ? `Distribution by ${activePieField.label} total`
+          : 'Distribution by matching log count';
+      case 'timeline_trend':
+        return `Grouped by ${timelineGranularity}`;
+      case 'field_breakdown':
+        return 'Breakdown across custom attributes and metrics';
+      default:
+        return undefined;
+    }
+  }, [expandedCard, aggregates, expandedFieldStat, activePieField, timelineGranularity]);
+
   const handleExport = (format: 'csv' | 'xlsx' | 'json') => {
     const filePrefix =
       selectedCategories.length === 1 && singleCategoryObj
@@ -524,6 +626,9 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
     cols.push({ key: 'timestamp', label: 'Last Modified' });
     return cols;
   }, [showCategoryColumn, dynamicColumns]);
+
+  const modalHoveredSlice =
+    modalHoveredSliceIndex !== null ? pieSlices[modalHoveredSliceIndex] ?? null : null;
 
   return (
     <div className="max-w-7xl mx-auto flex flex-col space-y-4 px-2 sm:px-4 pb-12">
@@ -649,6 +754,10 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
           setActiveViewId(null);
           setHiddenCardKeys(nextHidden);
         }}
+        onExpandCard={(target) => {
+          setModalHoveredSliceIndex(null);
+          setExpandedCard(target);
+        }}
       />
 
       <AnalyticsDataTable
@@ -668,6 +777,301 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         onToggleSelectRow={(id) => setSelectedRowId((prev) => (prev === id ? null : id))}
         getLogTimestamp={getLogTimestamp}
       />
+
+      <CardExpandModal
+        isOpen={Boolean(expandedCard)}
+        title={modalTitle}
+        subtitle={modalSubtitle}
+        onClose={() => setExpandedCard(null)}
+      >
+        {expandedCard?.cardKey === 'matching_logs' && (
+          <div className="bg-white border border-blue-100 rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xs">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-semibold text-gray-500 uppercase">
+                  Total Matching Logs
+                </span>
+                <div className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-1">
+                  {aggregates.totalLogs}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Across {aggregates.categoryBreakdownCount}{' '}
+                  {aggregates.categoryBreakdownCount === 1 ? 'category' : 'categories'}
+                </p>
+              </div>
+              <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                <Layers className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+
+            {aggregates.categoryBreakdown.length > 0 && (
+              <div className="pt-4 border-t border-gray-100 space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase">
+                  <span>By Category</span>
+                  <span>Logs</span>
+                </div>
+                <div className="divide-y divide-gray-100 max-h-[45vh] overflow-y-auto analytics-scrollbar pr-1">
+                  {aggregates.categoryBreakdown.map((item) => (
+                    <div
+                      key={item.categoryName}
+                      className="py-2.5 flex items-center justify-between text-sm gap-3"
+                    >
+                      <span className="font-medium text-gray-800 truncate">
+                        {item.categoryName}
+                      </span>
+                      <span className="font-bold text-gray-900 shrink-0">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {expandedCard?.cardKey === 'field_stats' && expandedFieldStat && (
+          <div className="bg-white border border-blue-100 rounded-2xl p-5 sm:p-6 space-y-6 shadow-2xs">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {expandedFieldStat.type === 'duration' && (
+                  <Clock className="w-4 h-4 text-blue-500" />
+                )}
+                <span className="text-sm font-bold text-gray-800">
+                  {expandedFieldStat.label}
+                </span>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600">
+                n = {expandedFieldStat.count}
+              </span>
+            </div>
+
+            {expandedFieldStat.type === 'boolean' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
+                  <span className="block text-xs text-gray-400 uppercase font-semibold">
+                    Checked
+                  </span>
+                  <span className="text-2xl font-extrabold text-gray-900 mt-1 block">
+                    {expandedFieldStat.trueCount} / {expandedFieldStat.count}
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
+                  <span className="block text-xs text-gray-400 uppercase font-semibold">
+                    Rate
+                  </span>
+                  <span className="text-2xl font-extrabold text-blue-600 mt-1 block">
+                    {expandedFieldStat.avg.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
+                  <span className="text-gray-400 block text-xs uppercase font-semibold">
+                    {expandedFieldStat.type === 'duration' ? 'Total Time' : 'Sum'}
+                  </span>
+                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
+                    {formatMetric(expandedFieldStat.sum, expandedFieldStat.type)}
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
+                  <span className="text-gray-400 block text-xs uppercase font-semibold">
+                    Average
+                  </span>
+                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
+                    {formatMetric(expandedFieldStat.avg, expandedFieldStat.type)}
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
+                  <span className="text-gray-400 block text-xs uppercase font-semibold">
+                    Min
+                  </span>
+                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
+                    {formatMetric(expandedFieldStat.min, expandedFieldStat.type)}
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
+                  <span className="text-gray-400 block text-xs uppercase font-semibold">
+                    Max
+                  </span>
+                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
+                    {formatMetric(expandedFieldStat.max, expandedFieldStat.type)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {expandedFieldStat.byCategory.length > 0 && (
+              <div className="pt-4 border-t border-gray-100 space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase">
+                  <span>By Category</span>
+                  <span>Total</span>
+                </div>
+                <div className="divide-y divide-gray-100 max-h-[35vh] overflow-y-auto analytics-scrollbar pr-1">
+                  {expandedFieldStat.byCategory.map((contrib) => (
+                    <div
+                      key={contrib.categoryName}
+                      className="py-2 flex items-center justify-between text-sm gap-3"
+                    >
+                      <span className="text-gray-700 truncate">{contrib.categoryName}</span>
+                      <span className="font-semibold text-gray-900 shrink-0">
+                        {expandedFieldStat.type === 'boolean'
+                          ? `${contrib.trueCount}/${contrib.count}`
+                          : formatMetric(contrib.sum, expandedFieldStat.type)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {expandedCard?.cardKey === 'category_share' && (
+          <div className="bg-white border border-blue-100 rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xs">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <PieChartIcon className="w-4 h-4 text-blue-500" />
+                <span>Category Share</span>
+              </span>
+              {aggregates.fieldStats.length > 1 && (
+                <select
+                  value={selectedPieFieldKey}
+                  onChange={(e) => {
+                    setActiveViewId(null);
+                    setSelectedPieFieldKey(e.target.value);
+                  }}
+                  aria-label="Expanded pie chart metric"
+                  style={{ fontSize: '13px' }}
+                  className="h-8 text-xs font-semibold bg-blue-50/70 border border-blue-100 rounded-lg px-2.5 text-blue-700 focus:outline-none focus:border-blue-400 cursor-pointer"
+                >
+                  {aggregates.fieldStats.map((f) => (
+                    <option key={f.key} value={f.key}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center py-2">
+              <svg viewBox="0 0 100 100" className="w-44 h-44 sm:w-52 sm:h-52 overflow-visible">
+                {pieSlices.map((slice, idx) => {
+                  const isHovered = modalHoveredSliceIndex === idx;
+                  const isFullCircle = slice.endAngle - slice.startAngle >= 359.9;
+                  return isFullCircle ? (
+                    <circle
+                      key={slice.label}
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill={slice.color}
+                      onMouseEnter={() => setModalHoveredSliceIndex(idx)}
+                      onMouseLeave={() => setModalHoveredSliceIndex(null)}
+                      className="transition-opacity cursor-pointer"
+                      style={{ opacity: modalHoveredSliceIndex === null || isHovered ? 1 : 0.55 }}
+                    />
+                  ) : (
+                    <path
+                      key={slice.label}
+                      d={describePieSlice(50, 50, 45, slice.startAngle, slice.endAngle)}
+                      fill={slice.color}
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                      onMouseEnter={() => setModalHoveredSliceIndex(idx)}
+                      onMouseLeave={() => setModalHoveredSliceIndex(null)}
+                      className="transition-opacity cursor-pointer"
+                      style={{ opacity: modalHoveredSliceIndex === null || isHovered ? 1 : 0.55 }}
+                    />
+                  );
+                })}
+              </svg>
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 max-h-[35vh] overflow-y-auto analytics-scrollbar space-y-1.5 pr-1">
+              {pieSlices.map((slice, idx) => (
+                <div
+                  key={slice.label}
+                  onMouseEnter={() => setModalHoveredSliceIndex(idx)}
+                  onMouseLeave={() => setModalHoveredSliceIndex(null)}
+                  className={`flex items-center justify-between text-sm gap-3 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors ${
+                    modalHoveredSliceIndex === idx ? 'bg-blue-50/70' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: slice.color }}
+                    />
+                    <span className="text-gray-800 truncate">{slice.label}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-gray-500">{slice.valueLabel}</span>
+                    <span className="font-bold text-gray-900">
+                      {slice.percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-xs text-gray-500 border-t border-gray-100 pt-2.5">
+              {modalHoveredSlice ? (
+                <span>
+                  <strong className="text-gray-800">{modalHoveredSlice.label}</strong>:{' '}
+                  {modalHoveredSlice.valueLabel} ({modalHoveredSlice.percentage.toFixed(1)}%)
+                </span>
+              ) : activePieField ? (
+                <span>
+                  Based on <strong className="text-gray-700">{activePieField.label}</strong> total
+                </span>
+              ) : (
+                <span>Based on matching log count</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {expandedCard?.cardKey === 'timeline_trend' && (
+          <div className="w-full">
+            <TimelineTrendCard
+              logs={filteredLogs}
+              fieldStats={aggregates.fieldStats}
+              cardHeightClass="h-[420px] sm:h-[480px]"
+              granularity={timelineGranularity}
+              onGranularityChange={(val) => {
+                setActiveViewId(null);
+                setTimelineGranularity(val);
+              }}
+              selectedMetricKey={timelineMetricKey}
+              onMetricChange={(val) => {
+                setActiveViewId(null);
+                setTimelineMetricKey(val);
+              }}
+            />
+          </div>
+        )}
+
+        {expandedCard?.cardKey === 'field_breakdown' && (
+          <div className="w-full">
+            <FieldBreakdownCard
+              logs={filteredLogs}
+              fieldStats={aggregates.fieldStats}
+              categories={categories}
+              cardHeightClass="h-[420px] sm:h-[480px]"
+              selectedFieldKey={breakdownFieldKey}
+              onSelectedFieldChange={(val) => {
+                setActiveViewId(null);
+                setBreakdownFieldKey(val);
+              }}
+              selectedMetricKey={breakdownMetricKey}
+              onSelectedMetricChange={(val) => {
+                setActiveViewId(null);
+                setBreakdownMetricKey(val);
+              }}
+            />
+          </div>
+        )}
+      </CardExpandModal>
     </div>
   );
 }
