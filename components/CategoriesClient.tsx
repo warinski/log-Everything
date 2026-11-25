@@ -284,9 +284,10 @@ export default function CategoriesClient({ userId }: CategoriesClientProps) {
     <div className="max-w-7xl mx-auto flex flex-col space-y-4 px-2 sm:px-4 pb-12">
       {/* Header & Add Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-        <div>
+        <div className="flex items-center gap-2">
+          <FolderKanban className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
           <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
-            Categories & Templates
+            Categories &amp; Templates
           </h1>
         </div>
 

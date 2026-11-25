@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Sparkles,
   Crown,
+  Settings,
 } from 'lucide-react';
 import { updateUserProfile } from '@/lib/actions/userActions';
 import {
@@ -127,11 +128,11 @@ export default function SettingsClient({ user }: SettingsClientProps) {
   return (
     <div className="max-w-4xl mx-auto flex flex-col space-y-6 px-2 sm:px-4 pb-12">
       {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-xl font-bold tracking-tight text-gray-900">User Settings</h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-          Manage your profile credentials, account plan, security, and preferences.
-        </p>
+      <div className="flex items-center gap-2">
+        <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
+        <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
+          User Settings
+        </h1>
       </div>
 
       {message && (

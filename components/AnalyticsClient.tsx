@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Download, FileSpreadsheet, FileJson, Layers, Clock, PieChart as PieChartIcon } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Download, FileSpreadsheet, FileJson, Eye, EyeOff, BarChart3 } from 'lucide-react';
 import { getFilteredLogs } from '@/lib/actions/logActions';
 import { getUserCategories } from '@/lib/actions/categoryActions';
 import {
@@ -20,71 +20,28 @@ import AnalyticsFilters from '@/components/analytics/AnalyticsFilters';
 import SummaryCardsSection from '@/components/analytics/SummaryCardsSection';
 import AnalyticsDataTable, { SortConfig } from '@/components/analytics/AnalyticsDataTable';
 import CardExpandModal from '@/components/analytics/CardExpandModal';
-import TimelineTrendCard from '@/components/analytics/TimelineTrendCard';
-import FieldBreakdownCard from '@/components/analytics/FieldBreakdownCard';
+import ExpandedCardContent, {
+  ExpandedCardTarget,
+} from '@/components/analytics/ExpandedCardContent';
+import { exportAnalyticsLogs } from '@/lib/analytics/exportLogs';
 import { AnalyticsCardKey, SavedAnalyticsView } from '@/lib/analytics/savedViews';
 import {
   discoverDynamicColumns,
   computeAggregates,
   buildPieSlices,
   parseNumeric,
-  formatMetric,
 } from '@/lib/analytics/aggregations';
 import { TrendGranularity } from '@/lib/analytics/timelineTrend';
-
-export type ExpandedCardTarget =
-  | { cardKey: 'matching_logs' }
-  | { cardKey: 'field_stats'; fieldKey: string }
-  | { cardKey: 'category_share' }
-  | { cardKey: 'timeline_trend' }
-  | { cardKey: 'field_breakdown' }
-  | null;
 
 interface AnalyticsClientProps {
   userId: string;
 }
 
-function polarToCartesian(cx: number, cy: number, r: number, angleInDegrees: number) {
-  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
-  return {
-    x: cx + r * Math.cos(angleInRadians),
-    y: cy + r * Math.sin(angleInRadians),
-  };
-}
-
-function describePieSlice(
-  cx: number,
-  cy: number,
-  r: number,
-  startAngle: number,
-  endAngle: number
-) {
-  const clampedSweep = Math.min(359.999, Math.max(0, endAngle - startAngle));
-  const actualEnd = startAngle + clampedSweep;
-  const start = polarToCartesian(cx, cy, r, actualEnd);
-  const end = polarToCartesian(cx, cy, r, startAngle);
-  const largeArcFlag = clampedSweep > 180 ? '1' : '0';
-
-  return [
-    'M',
-    cx,
-    cy,
-    'L',
-    end.x,
-    end.y,
-    'A',
-    r,
-    r,
-    0,
-    largeArcFlag,
-    1,
-    start.x,
-    start.y,
-    'Z',
-  ].join(' ');
-}
-
 export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
+  const searchParams = useSearchParams();
+  const requestedViewId = searchParams.get('view');
+  const appliedQueryViewIdRef = useRef<string | null>(null);
+
   const [categories, setCategories] = useState<CategoryTemplate[]>([]);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,6 +66,7 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   const [modalHoveredSliceIndex, setModalHoveredSliceIndex] = useState<number | null>(null);
 
   const [selectedPieFieldKey, setSelectedPieFieldKey] = useState<string>('');
+  const [showDataTable, setShowDataTable] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const rowsPerPage = 10;
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
@@ -116,6 +74,10 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   const [sortConfigs, setSortConfigs] = useState<SortConfig[]>([
     { key: 'timestamp', direction: 'desc' },
   ]);
+
+  const invalidateActiveView = useCallback(() => {
+    setActiveViewId(null);
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -225,14 +187,13 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   );
 
   const handleApplyView = useCallback((view: SavedAnalyticsView) => {
-    if (Array.isArray(view.selectedCategories)) {
-      setSelectedCategories(view.selectedCategories);
-    } else if (view.selectedCategory) {
-      setSelectedCategories(view.selectedCategory.split(',').filter(Boolean));
-    } else {
-      setSelectedCategories([]);
-    }
-
+    setSelectedCategories(
+      Array.isArray(view.selectedCategories)
+        ? view.selectedCategories
+        : view.selectedCategory
+          ? view.selectedCategory.split(',').filter(Boolean)
+          : []
+    );
     setSearchQuery(view.searchQuery || '');
     setDateFrom(view.dateFrom || '');
     setDateTo(view.dateTo || '');
@@ -252,21 +213,30 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
     setLastAppliedViewId(view.id);
   }, []);
 
+  useEffect(() => {
+    if (!requestedViewId) {
+      appliedQueryViewIdRef.current = null;
+      return;
+    }
+    if (savedViews.length === 0 || appliedQueryViewIdRef.current === requestedViewId) {
+      return;
+    }
+    const target = savedViews.find((v) => v.id === requestedViewId);
+    if (target) {
+      appliedQueryViewIdRef.current = requestedViewId;
+      handleApplyView(target);
+    }
+  }, [requestedViewId, savedViews, handleApplyView]);
+
   const handleDeleteView = useCallback(
     async (id: string) => {
       const targetView = savedViews.find((v) => v.id === id) ?? null;
       try {
         await deleteSavedView(id, userId);
         setSavedViews((prev) => prev.filter((v) => v.id !== id));
-        if (activeViewId === id) {
-          setActiveViewId(null);
-        }
-        if (lastAppliedViewId === id) {
-          setLastAppliedViewId(null);
-        }
-        if (targetView) {
-          setDeletedView(targetView);
-        }
+        if (activeViewId === id) setActiveViewId(null);
+        if (lastAppliedViewId === id) setLastAppliedViewId(null);
+        if (targetView) setDeletedView(targetView);
       } catch (error) {
         console.error('Failed to delete view:', error);
       }
@@ -295,9 +265,10 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
     [categories, selectedCategories]
   );
 
-  const getLogTimestamp = useCallback((log: any): Date => {
-    return new Date(log.timestamp || log.loggedAt || log.createdAt);
-  }, []);
+  const getLogTimestamp = useCallback(
+    (log: any): Date => new Date(log.timestamp || log.loggedAt || log.createdAt),
+    []
+  );
 
   const getLogEffectiveDate = useCallback(
     (log: any): Date => {
@@ -317,6 +288,8 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
 
   const filteredLogs = useMemo(() => {
     const selectedSet = new Set(selectedCategories);
+    const q = searchQuery.trim().toLowerCase();
+
     return logs.filter((log: any) => {
       if (selectedSet.size > 0 && (!log.categoryId || !selectedSet.has(log.categoryId))) {
         return false;
@@ -332,15 +305,15 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         to.setHours(23, 59, 59, 999);
         if (logDate > to) return false;
       }
-      if (searchQuery.trim() !== '') {
-        const q = searchQuery.toLowerCase();
-        const inTitle = log.title?.toLowerCase().includes(q);
-        const inNotes = log.notes?.toLowerCase().includes(q);
-        const inTags = log.tags?.some((t: string) => t.toLowerCase().includes(q));
-        const inAttrs = Object.values(log.attributes || {}).some((v) =>
-          String(v).toLowerCase().includes(q)
-        );
-        if (!inTitle && !inNotes && !inTags && !inAttrs) return false;
+      if (q !== '') {
+        const matchesText =
+          log.title?.toLowerCase().includes(q) ||
+          log.notes?.toLowerCase().includes(q) ||
+          log.tags?.some((t: string) => t.toLowerCase().includes(q)) ||
+          Object.values(log.attributes || {}).some((v) =>
+            String(v).toLowerCase().includes(q)
+          );
+        if (!matchesText) return false;
       }
       return true;
     });
@@ -351,7 +324,13 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   }, [selectedCategories, searchQuery, dateFrom, dateTo]);
 
   const dynamicColumns = useMemo(
-    () => discoverDynamicColumns(singleCategoryObj, selectedCategories, categories, filteredLogs),
+    () =>
+      discoverDynamicColumns(
+        singleCategoryObj,
+        selectedCategories,
+        categories,
+        filteredLogs
+      ),
     [singleCategoryObj, selectedCategories, categories, filteredLogs]
   );
 
@@ -367,7 +346,7 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
   );
 
   const handleSort = (key: string, e: React.MouseEvent) => {
-    setActiveViewId(null);
+    invalidateActiveView();
     setSortConfigs((prev) => {
       const existingIndex = prev.findIndex((s) => s.key === key);
       if (e.shiftKey) {
@@ -468,7 +447,10 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
 
   useEffect(() => {
     if (aggregates.fieldStats.length === 0) return;
-    if (!selectedPieFieldKey || !aggregates.fieldStats.some((f) => f.key === selectedPieFieldKey)) {
+    if (
+      !selectedPieFieldKey ||
+      !aggregates.fieldStats.some((f) => f.key === selectedPieFieldKey)
+    ) {
       setSelectedPieFieldKey(aggregates.fieldStats[0].key);
     }
   }, [aggregates.fieldStats, selectedPieFieldKey]);
@@ -488,7 +470,12 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         aggregates.categoryBreakdown,
         aggregates.totalLogs
       ),
-    [isMultiCategoryScope, activePieField, aggregates.categoryBreakdown, aggregates.totalLogs]
+    [
+      isMultiCategoryScope,
+      activePieField,
+      aggregates.categoryBreakdown,
+      aggregates.totalLogs,
+    ]
   );
 
   const expandedFieldStat = useMemo(() => {
@@ -496,103 +483,61 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
     return aggregates.fieldStats.find((f) => f.key === expandedCard.fieldKey);
   }, [expandedCard, aggregates.fieldStats]);
 
-  const modalTitle = useMemo(() => {
-    if (!expandedCard) return '';
+  const { modalTitle, modalSubtitle } = useMemo(() => {
+    if (!expandedCard) return { modalTitle: '', modalSubtitle: undefined };
     switch (expandedCard.cardKey) {
       case 'matching_logs':
-        return 'Matching Logs';
+        return {
+          modalTitle: 'Matching Logs',
+          modalSubtitle: `${aggregates.totalLogs} matching logs across ${aggregates.categoryBreakdownCount} ${
+            aggregates.categoryBreakdownCount === 1 ? 'category' : 'categories'
+          }`,
+        };
       case 'field_stats':
-        return expandedFieldStat?.label || 'Field Stats';
+        return {
+          modalTitle: expandedFieldStat?.label || 'Field Stats',
+          modalSubtitle: expandedFieldStat
+            ? `Sample size n = ${expandedFieldStat.count}`
+            : undefined,
+        };
       case 'category_share':
-        return 'Category Share';
+        return {
+          modalTitle: 'Category Share',
+          modalSubtitle: activePieField
+            ? `Distribution by ${activePieField.label} total`
+            : 'Distribution by matching log count',
+        };
       case 'timeline_trend':
-        return 'Timeline Trend';
+        return {
+          modalTitle: 'Timeline Trend',
+          modalSubtitle: `Grouped by ${timelineGranularity}`,
+        };
       case 'field_breakdown':
-        return 'Field Breakdown';
+        return {
+          modalTitle: 'Field Breakdown',
+          modalSubtitle: 'Breakdown across custom attributes and metrics',
+        };
       default:
-        return 'Analytics Card';
+        return { modalTitle: 'Analytics Card', modalSubtitle: undefined };
     }
-  }, [expandedCard, expandedFieldStat]);
-
-  const modalSubtitle = useMemo(() => {
-    if (!expandedCard) return undefined;
-    switch (expandedCard.cardKey) {
-      case 'matching_logs':
-        return `${aggregates.totalLogs} matching logs across ${aggregates.categoryBreakdownCount} ${
-          aggregates.categoryBreakdownCount === 1 ? 'category' : 'categories'
-        }`;
-      case 'field_stats':
-        return expandedFieldStat
-          ? `Sample size n = ${expandedFieldStat.count}`
-          : undefined;
-      case 'category_share':
-        return activePieField
-          ? `Distribution by ${activePieField.label} total`
-          : 'Distribution by matching log count';
-      case 'timeline_trend':
-        return `Grouped by ${timelineGranularity}`;
-      case 'field_breakdown':
-        return 'Breakdown across custom attributes and metrics';
-      default:
-        return undefined;
-    }
-  }, [expandedCard, aggregates, expandedFieldStat, activePieField, timelineGranularity]);
+  }, [
+    expandedCard,
+    aggregates,
+    expandedFieldStat,
+    activePieField,
+    timelineGranularity,
+  ]);
 
   const handleExport = (format: 'csv' | 'xlsx' | 'json') => {
-    const filePrefix =
-      selectedCategories.length === 1 && singleCategoryObj
-        ? singleCategoryObj.name.toLowerCase().replace(/\s+/g, '_')
-        : selectedCategories.length > 1
-          ? `selected_${selectedCategories.length}_categories`
-          : 'all_logs';
-    const dateStamp = new Date().toISOString().split('T')[0];
-
-    if (format === 'json') {
-      const exportData = sortedLogs.map((log: any) => ({
-        id: log._id,
-        title: log.title,
-        category: log.categoryName || 'General',
-        attributes: log.attributes || {},
-        tags: log.tags || [],
-        notes: log.notes || '',
-        lastModified: getLogTimestamp(log).toISOString(),
-      }));
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${filePrefix}_${dateStamp}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-      return;
-    }
-
-    const rows = sortedLogs.map((log: any) => {
-      const baseRow: Record<string, any> = { Title: log.title };
-      if (showCategoryColumn) baseRow['Category'] = log.categoryName || 'General';
-      dynamicColumns.forEach((col) => {
-        const raw = log.attributes?.[col.key];
-        baseRow[col.label] = typeof raw === 'boolean' ? (raw ? 'Yes' : 'No') : raw ?? '';
-      });
-      baseRow['Tags'] = (log.tags || []).join(', ');
-      baseRow['Notes'] = log.notes || '';
-      baseRow['Last Modified'] = getLogTimestamp(log).toLocaleString();
-      return baseRow;
+    exportAnalyticsLogs({
+      format,
+      logs: sortedLogs,
+      selectedCategories,
+      singleCategoryObj,
+      dynamicColumns,
+      showCategoryColumn,
+      getLogTimestamp,
     });
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    const sheetName =
-      selectedCategories.length === 1 && singleCategoryObj
-        ? singleCategoryObj.name.slice(0, 30)
-        : 'Analytics Logs';
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-    if (format === 'csv') {
-      XLSX.writeFile(workbook, `${filePrefix}_${dateStamp}.csv`, { bookType: 'csv' });
-    } else {
-      XLSX.writeFile(workbook, `${filePrefix}_${dateStamp}.xlsx`, { bookType: 'xlsx' });
-    }
   };
 
   const handleResizeMouseDown = (key: string, e: React.MouseEvent) => {
@@ -627,18 +572,22 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
     return cols;
   }, [showCategoryColumn, dynamicColumns]);
 
-  const modalHoveredSlice =
-    modalHoveredSliceIndex !== null ? pieSlices[modalHoveredSliceIndex] ?? null : null;
+  const resetSortToTimestamp = () =>
+    setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
 
   return (
     <div className="max-w-7xl mx-auto flex flex-col space-y-4 px-2 sm:px-4 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-        <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
-          Insights & Analytics
-        </h1>
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
+          <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
+            Insights & Analytics
+          </h1>
+        </div>
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
+            type="button"
             onClick={() => handleExport('csv')}
             disabled={sortedLogs.length === 0}
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 text-xs sm:text-sm font-semibold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
@@ -646,6 +595,7 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
             <Download className="w-4 h-4 text-blue-600" /> CSV
           </button>
           <button
+            type="button"
             onClick={() => handleExport('xlsx')}
             disabled={sortedLogs.length === 0}
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 text-xs sm:text-sm font-semibold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
@@ -653,6 +603,7 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
             <FileSpreadsheet className="w-4 h-4 text-blue-600" /> XLSX
           </button>
           <button
+            type="button"
             onClick={() => handleExport('json')}
             disabled={sortedLogs.length === 0}
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 text-xs sm:text-sm font-semibold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
@@ -681,35 +632,35 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         selectedCategories={selectedCategories}
         onToggleCategory={(id) => {
           if (!id) return;
-          setActiveViewId(null);
+          invalidateActiveView();
           setSelectedCategories((prev) =>
             prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
           );
-          setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
+          resetSortToTimestamp();
         }}
         onSelectAllCategories={() => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setSelectedCategories(categories.map((c) => c._id).filter(Boolean));
-          setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
+          resetSortToTimestamp();
         }}
         onClearCategories={() => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setSelectedCategories([]);
-          setSortConfigs([{ key: 'timestamp', direction: 'desc' }]);
+          resetSortToTimestamp();
         }}
         searchQuery={searchQuery}
         onSearchChange={(val) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setSearchQuery(val);
         }}
         dateFrom={dateFrom}
         onDateFromChange={(val) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setDateFrom(val);
         }}
         dateTo={dateTo}
         onDateToChange={(val) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setDateTo(val);
         }}
       />
@@ -724,34 +675,34 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         activePieField={activePieField}
         selectedPieFieldKey={selectedPieFieldKey}
         onSelectPieField={(key) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setSelectedPieFieldKey(key);
         }}
         filteredLogs={filteredLogs}
         categories={categories}
         timelineGranularity={timelineGranularity}
         onTimelineGranularityChange={(val) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setTimelineGranularity(val);
         }}
         timelineMetricKey={timelineMetricKey}
         onTimelineMetricChange={(val) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setTimelineMetricKey(val);
         }}
         breakdownFieldKey={breakdownFieldKey}
         onBreakdownFieldChange={(val) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setBreakdownFieldKey(val);
         }}
         breakdownMetricKey={breakdownMetricKey}
         onBreakdownMetricChange={(val) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setBreakdownMetricKey(val);
         }}
         hiddenCardKeys={hiddenCardKeys}
         onHiddenCardKeysChange={(nextHidden) => {
-          setActiveViewId(null);
+          invalidateActiveView();
           setHiddenCardKeys(nextHidden);
         }}
         onExpandCard={(target) => {
@@ -760,23 +711,45 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         }}
       />
 
-      <AnalyticsDataTable
-        isLoading={isLoading}
-        totalFilteredCount={sortedLogs.length}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        rowsPerPage={rowsPerPage}
-        onPageChange={setCurrentPage}
-        paginatedLogs={paginatedLogs}
-        tableColumns={tableColumns}
-        columnWidths={columnWidths}
-        sortConfigs={sortConfigs}
-        onSort={handleSort}
-        onResizeMouseDown={handleResizeMouseDown}
-        selectedRowId={selectedRowId}
-        onToggleSelectRow={(id) => setSelectedRowId((prev) => (prev === id ? null : id))}
-        getLogTimestamp={getLogTimestamp}
-      />
+      {/* Subtle centered borderless toggle for Table of Matching Logs after all Analytics Cards */}
+      <div className="flex items-center justify-center pt-1">
+        <button
+          type="button"
+          onClick={() => setShowDataTable((prev) => !prev)}
+          aria-pressed={showDataTable}
+          className="inline-flex items-center gap-1.5 py-1 text-xs sm:text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+        >
+          {showDataTable ? (
+            <EyeOff className="w-4 h-4 text-gray-500" />
+          ) : (
+            <Eye className="w-4 h-4 text-blue-600" />
+          )}
+          <span>Table of Matching Logs</span>
+          <span className="text-xs text-gray-400">({sortedLogs.length})</span>
+        </button>
+      </div>
+
+      {showDataTable && (
+        <AnalyticsDataTable
+          isLoading={isLoading}
+          totalFilteredCount={sortedLogs.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          rowsPerPage={rowsPerPage}
+          onPageChange={setCurrentPage}
+          paginatedLogs={paginatedLogs}
+          tableColumns={tableColumns}
+          columnWidths={columnWidths}
+          sortConfigs={sortConfigs}
+          onSort={handleSort}
+          onResizeMouseDown={handleResizeMouseDown}
+          selectedRowId={selectedRowId}
+          onToggleSelectRow={(id) =>
+            setSelectedRowId((prev) => (prev === id ? null : id))
+          }
+          getLogTimestamp={getLogTimestamp}
+        />
+      )}
 
       <CardExpandModal
         isOpen={Boolean(expandedCard)}
@@ -784,293 +757,42 @@ export default function AnalyticsClient({ userId }: AnalyticsClientProps) {
         subtitle={modalSubtitle}
         onClose={() => setExpandedCard(null)}
       >
-        {expandedCard?.cardKey === 'matching_logs' && (
-          <div className="bg-white border border-blue-100 rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xs">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <span className="text-xs font-semibold text-gray-500 uppercase">
-                  Total Matching Logs
-                </span>
-                <div className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-1">
-                  {aggregates.totalLogs}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Across {aggregates.categoryBreakdownCount}{' '}
-                  {aggregates.categoryBreakdownCount === 1 ? 'category' : 'categories'}
-                </p>
-              </div>
-              <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
-                <Layers className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-
-            {aggregates.categoryBreakdown.length > 0 && (
-              <div className="pt-4 border-t border-gray-100 space-y-2.5">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase">
-                  <span>By Category</span>
-                  <span>Logs</span>
-                </div>
-                <div className="divide-y divide-gray-100 max-h-[45vh] overflow-y-auto analytics-scrollbar pr-1">
-                  {aggregates.categoryBreakdown.map((item) => (
-                    <div
-                      key={item.categoryName}
-                      className="py-2.5 flex items-center justify-between text-sm gap-3"
-                    >
-                      <span className="font-medium text-gray-800 truncate">
-                        {item.categoryName}
-                      </span>
-                      <span className="font-bold text-gray-900 shrink-0">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {expandedCard?.cardKey === 'field_stats' && expandedFieldStat && (
-          <div className="bg-white border border-blue-100 rounded-2xl p-5 sm:p-6 space-y-6 shadow-2xs">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                {expandedFieldStat.type === 'duration' && (
-                  <Clock className="w-4 h-4 text-blue-500" />
-                )}
-                <span className="text-sm font-bold text-gray-800">
-                  {expandedFieldStat.label}
-                </span>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600">
-                n = {expandedFieldStat.count}
-              </span>
-            </div>
-
-            {expandedFieldStat.type === 'boolean' ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
-                  <span className="block text-xs text-gray-400 uppercase font-semibold">
-                    Checked
-                  </span>
-                  <span className="text-2xl font-extrabold text-gray-900 mt-1 block">
-                    {expandedFieldStat.trueCount} / {expandedFieldStat.count}
-                  </span>
-                </div>
-                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
-                  <span className="block text-xs text-gray-400 uppercase font-semibold">
-                    Rate
-                  </span>
-                  <span className="text-2xl font-extrabold text-blue-600 mt-1 block">
-                    {expandedFieldStat.avg.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
-                  <span className="text-gray-400 block text-xs uppercase font-semibold">
-                    {expandedFieldStat.type === 'duration' ? 'Total Time' : 'Sum'}
-                  </span>
-                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                    {formatMetric(expandedFieldStat.sum, expandedFieldStat.type)}
-                  </span>
-                </div>
-                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
-                  <span className="text-gray-400 block text-xs uppercase font-semibold">
-                    Average
-                  </span>
-                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                    {formatMetric(expandedFieldStat.avg, expandedFieldStat.type)}
-                  </span>
-                </div>
-                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
-                  <span className="text-gray-400 block text-xs uppercase font-semibold">
-                    Min
-                  </span>
-                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                    {formatMetric(expandedFieldStat.min, expandedFieldStat.type)}
-                  </span>
-                </div>
-                <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
-                  <span className="text-gray-400 block text-xs uppercase font-semibold">
-                    Max
-                  </span>
-                  <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                    {formatMetric(expandedFieldStat.max, expandedFieldStat.type)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {expandedFieldStat.byCategory.length > 0 && (
-              <div className="pt-4 border-t border-gray-100 space-y-2.5">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase">
-                  <span>By Category</span>
-                  <span>Total</span>
-                </div>
-                <div className="divide-y divide-gray-100 max-h-[35vh] overflow-y-auto analytics-scrollbar pr-1">
-                  {expandedFieldStat.byCategory.map((contrib) => (
-                    <div
-                      key={contrib.categoryName}
-                      className="py-2 flex items-center justify-between text-sm gap-3"
-                    >
-                      <span className="text-gray-700 truncate">{contrib.categoryName}</span>
-                      <span className="font-semibold text-gray-900 shrink-0">
-                        {expandedFieldStat.type === 'boolean'
-                          ? `${contrib.trueCount}/${contrib.count}`
-                          : formatMetric(contrib.sum, expandedFieldStat.type)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {expandedCard?.cardKey === 'category_share' && (
-          <div className="bg-white border border-blue-100 rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xs">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                <PieChartIcon className="w-4 h-4 text-blue-500" />
-                <span>Category Share</span>
-              </span>
-              {aggregates.fieldStats.length > 1 && (
-                <select
-                  value={selectedPieFieldKey}
-                  onChange={(e) => {
-                    setActiveViewId(null);
-                    setSelectedPieFieldKey(e.target.value);
-                  }}
-                  aria-label="Expanded pie chart metric"
-                  style={{ fontSize: '13px' }}
-                  className="h-8 text-xs font-semibold bg-blue-50/70 border border-blue-100 rounded-lg px-2.5 text-blue-700 focus:outline-none focus:border-blue-400 cursor-pointer"
-                >
-                  {aggregates.fieldStats.map((f) => (
-                    <option key={f.key} value={f.key}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            <div className="flex items-center justify-center py-2">
-              <svg viewBox="0 0 100 100" className="w-44 h-44 sm:w-52 sm:h-52 overflow-visible">
-                {pieSlices.map((slice, idx) => {
-                  const isHovered = modalHoveredSliceIndex === idx;
-                  const isFullCircle = slice.endAngle - slice.startAngle >= 359.9;
-                  return isFullCircle ? (
-                    <circle
-                      key={slice.label}
-                      cx="50"
-                      cy="50"
-                      r="45"
-                      fill={slice.color}
-                      onMouseEnter={() => setModalHoveredSliceIndex(idx)}
-                      onMouseLeave={() => setModalHoveredSliceIndex(null)}
-                      className="transition-opacity cursor-pointer"
-                      style={{ opacity: modalHoveredSliceIndex === null || isHovered ? 1 : 0.55 }}
-                    />
-                  ) : (
-                    <path
-                      key={slice.label}
-                      d={describePieSlice(50, 50, 45, slice.startAngle, slice.endAngle)}
-                      fill={slice.color}
-                      stroke="#ffffff"
-                      strokeWidth="1.5"
-                      onMouseEnter={() => setModalHoveredSliceIndex(idx)}
-                      onMouseLeave={() => setModalHoveredSliceIndex(null)}
-                      className="transition-opacity cursor-pointer"
-                      style={{ opacity: modalHoveredSliceIndex === null || isHovered ? 1 : 0.55 }}
-                    />
-                  );
-                })}
-              </svg>
-            </div>
-
-            <div className="border-t border-gray-100 pt-3 max-h-[35vh] overflow-y-auto analytics-scrollbar space-y-1.5 pr-1">
-              {pieSlices.map((slice, idx) => (
-                <div
-                  key={slice.label}
-                  onMouseEnter={() => setModalHoveredSliceIndex(idx)}
-                  onMouseLeave={() => setModalHoveredSliceIndex(null)}
-                  className={`flex items-center justify-between text-sm gap-3 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors ${
-                    modalHoveredSliceIndex === idx ? 'bg-blue-50/70' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span
-                      className="w-3 h-3 rounded-full shrink-0"
-                      style={{ backgroundColor: slice.color }}
-                    />
-                    <span className="text-gray-800 truncate">{slice.label}</span>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-gray-500">{slice.valueLabel}</span>
-                    <span className="font-bold text-gray-900">
-                      {slice.percentage.toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="text-xs text-gray-500 border-t border-gray-100 pt-2.5">
-              {modalHoveredSlice ? (
-                <span>
-                  <strong className="text-gray-800">{modalHoveredSlice.label}</strong>:{' '}
-                  {modalHoveredSlice.valueLabel} ({modalHoveredSlice.percentage.toFixed(1)}%)
-                </span>
-              ) : activePieField ? (
-                <span>
-                  Based on <strong className="text-gray-700">{activePieField.label}</strong> total
-                </span>
-              ) : (
-                <span>Based on matching log count</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {expandedCard?.cardKey === 'timeline_trend' && (
-          <div className="w-full">
-            <TimelineTrendCard
-              logs={filteredLogs}
-              fieldStats={aggregates.fieldStats}
-              cardHeightClass="h-[420px] sm:h-[480px]"
-              granularity={timelineGranularity}
-              onGranularityChange={(val) => {
-                setActiveViewId(null);
-                setTimelineGranularity(val);
-              }}
-              selectedMetricKey={timelineMetricKey}
-              onMetricChange={(val) => {
-                setActiveViewId(null);
-                setTimelineMetricKey(val);
-              }}
-            />
-          </div>
-        )}
-
-        {expandedCard?.cardKey === 'field_breakdown' && (
-          <div className="w-full">
-            <FieldBreakdownCard
-              logs={filteredLogs}
-              fieldStats={aggregates.fieldStats}
-              categories={categories}
-              cardHeightClass="h-[420px] sm:h-[480px]"
-              selectedFieldKey={breakdownFieldKey}
-              onSelectedFieldChange={(val) => {
-                setActiveViewId(null);
-                setBreakdownFieldKey(val);
-              }}
-              selectedMetricKey={breakdownMetricKey}
-              onSelectedMetricChange={(val) => {
-                setActiveViewId(null);
-                setBreakdownMetricKey(val);
-              }}
-            />
-          </div>
-        )}
+        <ExpandedCardContent
+          expandedCard={expandedCard}
+          filteredLogs={filteredLogs}
+          categories={categories}
+          aggregates={aggregates}
+          expandedFieldStat={expandedFieldStat}
+          pieSlices={pieSlices}
+          activePieField={activePieField}
+          selectedPieFieldKey={selectedPieFieldKey}
+          onSelectPieField={(key) => {
+            invalidateActiveView();
+            setSelectedPieFieldKey(key);
+          }}
+          modalHoveredSliceIndex={modalHoveredSliceIndex}
+          onHoverSlice={setModalHoveredSliceIndex}
+          timelineGranularity={timelineGranularity}
+          onTimelineGranularityChange={(val) => {
+            invalidateActiveView();
+            setTimelineGranularity(val);
+          }}
+          timelineMetricKey={timelineMetricKey}
+          onTimelineMetricChange={(val) => {
+            invalidateActiveView();
+            setTimelineMetricKey(val);
+          }}
+          breakdownFieldKey={breakdownFieldKey}
+          onBreakdownFieldChange={(val) => {
+            invalidateActiveView();
+            setBreakdownFieldKey(val);
+          }}
+          breakdownMetricKey={breakdownMetricKey}
+          onBreakdownMetricChange={(val) => {
+            invalidateActiveView();
+            setBreakdownMetricKey(val);
+          }}
+        />
       </CardExpandModal>
     </div>
   );

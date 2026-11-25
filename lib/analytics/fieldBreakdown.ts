@@ -11,10 +11,14 @@ export interface FieldBreakdownRow {
 export interface SelectableBreakdownField {
   key: string;
   label: string;
-  kind: 'boolean' | 'attribute';
+  kind: 'boolean' | 'attribute' | 'title' | 'notes' | 'tags';
   candidateKeys: string[];
   isSelectField?: boolean;
 }
+
+const BASE_TITLE_KEY = '__base_title__';
+const BASE_NOTES_KEY = '__base_notes__';
+const BASE_TAGS_KEY = '__base_tags__';
 
 function normalizeKey(raw: string): string {
   return raw
@@ -109,11 +113,35 @@ function findAttributeEntry(
   return null;
 }
 
-function hasNonEmptyFieldValue(rawVal: unknown, kind: 'boolean' | 'attribute'): boolean {
-  if (kind === 'boolean') {
-    return rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '';
+function hasNonEmptyFieldValue(
+  rawVal: unknown,
+  kind: SelectableBreakdownField['kind']
+): boolean {
+  if (kind === 'tags') {
+    return (
+      Array.isArray(rawVal) &&
+      rawVal.some((t) => t !== undefined && t !== null && String(t).trim() !== '')
+    );
   }
   return rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '';
+}
+
+function logMatchesBreakdownField(log: any, field: SelectableBreakdownField): boolean {
+  if (field.kind === 'title') {
+    return hasNonEmptyFieldValue(log?.title, 'title');
+  }
+  if (field.kind === 'notes') {
+    return hasNonEmptyFieldValue(log?.notes, 'notes');
+  }
+  if (field.kind === 'tags') {
+    return hasNonEmptyFieldValue(log?.tags, 'tags');
+  }
+
+  const attrs = log?.attributes;
+  if (!attrs || typeof attrs !== 'object') return false;
+  const found = findAttributeEntry(attrs, field);
+  if (!found) return false;
+  return hasNonEmptyFieldValue(found.value, field.kind);
 }
 
 export function getBreakdownableFields(
@@ -229,6 +257,37 @@ export function getBreakdownableFields(
     });
   }
 
+  // 3. Base log fields: Title, Notes, Tags
+  const hasTitleLogs = (logs || []).some((l) => hasNonEmptyFieldValue(l?.title, 'title'));
+  if (hasTitleLogs) {
+    result.push({
+      key: BASE_TITLE_KEY,
+      label: 'Title',
+      kind: 'title',
+      candidateKeys: ['title'],
+    });
+  }
+
+  const hasNotesLogs = (logs || []).some((l) => hasNonEmptyFieldValue(l?.notes, 'notes'));
+  if (hasNotesLogs) {
+    result.push({
+      key: BASE_NOTES_KEY,
+      label: 'Notes',
+      kind: 'notes',
+      candidateKeys: ['notes'],
+    });
+  }
+
+  const hasTagsLogs = (logs || []).some((l) => hasNonEmptyFieldValue(l?.tags, 'tags'));
+  if (hasTagsLogs) {
+    result.push({
+      key: BASE_TAGS_KEY,
+      label: 'Tags',
+      kind: 'tags',
+      candidateKeys: ['tags'],
+    });
+  }
+
   return result;
 }
 
@@ -242,14 +301,7 @@ export function getPertinentMetricsForField(
   const candidateMetrics = fieldStats.filter((f) => f.type !== 'boolean');
   if (candidateMetrics.length === 0) return [];
 
-  const matchingLogs = (logs || []).filter((log) => {
-    const attrs = log?.attributes;
-    if (!attrs || typeof attrs !== 'object') return false;
-    const found = findAttributeEntry(attrs, field);
-    if (!found) return false;
-    return hasNonEmptyFieldValue(found.value, field.kind);
-  });
-
+  const matchingLogs = (logs || []).filter((log) => logMatchesBreakdownField(log, field));
   if (matchingLogs.length === 0) return [];
 
   return candidateMetrics.filter((metric) =>
@@ -274,30 +326,14 @@ export function buildFieldBreakdown(
     }
   >();
 
-  let totalMatchedLogs = 0;
+  let totalMatchedItems = 0;
 
-  for (const log of logs || []) {
-    const attrs = log?.attributes;
-    if (!attrs || typeof attrs !== 'object') continue;
-
-    const found = findAttributeEntry(attrs, field);
-    if (!found || !hasNonEmptyFieldValue(found.value, field.kind)) continue;
-
-    const rawVal = found.value;
-    let bucketKey = '';
-    let bucketLabel = '';
-
-    if (field.kind === 'boolean') {
-      const checked = Boolean(rawVal);
-      bucketKey = checked ? 'checked' : 'unchecked';
-      bucketLabel = checked ? 'Checked' : 'Unchecked';
-    } else {
-      bucketLabel = String(rawVal).trim();
-      bucketKey = bucketLabel.toLowerCase();
-    }
-
-    totalMatchedLogs += 1;
-
+  const addBucketOccurrence = (
+    log: any,
+    bucketKey: string,
+    bucketLabel: string
+  ) => {
+    totalMatchedItems += 1;
     const existing = buckets.get(bucketKey) || {
       label: bucketLabel,
       count: 0,
@@ -316,9 +352,56 @@ export function buildFieldBreakdown(
     }
 
     buckets.set(bucketKey, existing);
+  };
+
+  for (const log of logs || []) {
+    if (!logMatchesBreakdownField(log, field)) continue;
+
+    if (field.kind === 'title') {
+      const label = String(log.title).trim();
+      addBucketOccurrence(log, label.toLowerCase(), label);
+      continue;
+    }
+
+    if (field.kind === 'notes') {
+      const label = String(log.notes).trim();
+      addBucketOccurrence(log, label.toLowerCase(), label);
+      continue;
+    }
+
+    if (field.kind === 'tags') {
+      const uniqueTagsInLog = new Set<string>();
+      for (const rawTag of log.tags || []) {
+        const cleanTag = String(rawTag ?? '').trim();
+        if (!cleanTag) continue;
+        const key = cleanTag.toLowerCase();
+        if (uniqueTagsInLog.has(key)) continue;
+        uniqueTagsInLog.add(key);
+        addBucketOccurrence(log, key, cleanTag);
+      }
+      continue;
+    }
+
+    const attrs = log?.attributes;
+    if (!attrs || typeof attrs !== 'object') continue;
+    const found = findAttributeEntry(attrs, field);
+    if (!found) continue;
+
+    const rawVal = found.value;
+    if (field.kind === 'boolean') {
+      const checked = Boolean(rawVal);
+      addBucketOccurrence(
+        log,
+        checked ? 'checked' : 'unchecked',
+        checked ? 'Checked' : 'Unchecked'
+      );
+    } else {
+      const label = String(rawVal).trim();
+      addBucketOccurrence(log, label.toLowerCase(), label);
+    }
   }
 
-  if (totalMatchedLogs === 0) return { rows: [], hasMetricValues: false };
+  if (totalMatchedItems === 0) return { rows: [], hasMetricValues: false };
 
   const rawEntries = Array.from(buckets.entries()).map(([valueKey, b]) => ({
     valueKey,

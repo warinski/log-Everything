@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Calculator,
   Layers,
@@ -16,7 +16,8 @@ import {
   PieSlice,
   formatMetric,
 } from '@/lib/analytics/aggregations';
-import { TrendGranularity } from '@/lib/analytics/timelineTrend';
+import { buildTimelineTrend, TrendGranularity } from '@/lib/analytics/timelineTrend';
+import { getBreakdownableFields } from '@/lib/analytics/fieldBreakdown';
 import { AnalyticsCardKey } from '@/lib/analytics/savedViews';
 import TimelineTrendCard from '@/components/analytics/TimelineTrendCard';
 import FieldBreakdownCard from '@/components/analytics/FieldBreakdownCard';
@@ -139,9 +140,9 @@ export default function SummaryCardsSection({
   onSelectPieField,
   filteredLogs = [],
   categories = [],
-  timelineGranularity,
+  timelineGranularity = 'day',
   onTimelineGranularityChange,
-  timelineMetricKey,
+  timelineMetricKey = '__count__',
   onTimelineMetricChange,
   breakdownFieldKey,
   onBreakdownFieldChange,
@@ -207,12 +208,27 @@ export default function SummaryCardsSection({
   const isTimelineTrendVisible = !hiddenSet.has('timeline_trend');
   const isFieldBreakdownVisible = !hiddenSet.has('field_breakdown');
 
+  const hasTimelineData = useMemo(() => {
+    if (!filteredLogs || filteredLogs.length === 0) return false;
+    return (
+      buildTimelineTrend(filteredLogs, timelineGranularity, timelineMetricKey, fieldStats).length > 0
+    );
+  }, [filteredLogs, timelineGranularity, timelineMetricKey, fieldStats]);
+
+  const hasBreakdownData = useMemo(() => {
+    if (!filteredLogs || filteredLogs.length === 0) return false;
+    return getBreakdownableFields(filteredLogs, fieldStats, categories).length > 0;
+  }, [filteredLogs, fieldStats, categories]);
+
+  const showTimelineTrendCard = isTimelineTrendVisible && hasTimelineData;
+  const showFieldBreakdownCard = isFieldBreakdownVisible && hasBreakdownData;
+
   const hasAnyVisibleCard =
     isMatchingLogsVisible ||
     (isFieldStatsVisible && fieldStats.length > 0) ||
     (isCategoryShareVisible && isMultiCategoryScope && pieSlices.length > 0) ||
-    isTimelineTrendVisible ||
-    isFieldBreakdownVisible;
+    showTimelineTrendCard ||
+    showFieldBreakdownCard;
 
   return (
     <div className="space-y-2 shrink-0">
@@ -597,7 +613,7 @@ export default function SummaryCardsSection({
           )}
 
           {/* Timeline Trend Card */}
-          {isTimelineTrendVisible && (
+          {showTimelineTrendCard && (
             <div className="relative min-w-0">
               {onExpandCard && (
                 <div className="absolute top-3.5 right-3.5 z-10">
@@ -620,7 +636,7 @@ export default function SummaryCardsSection({
           )}
 
           {/* Per-Field Breakdown Card */}
-          {isFieldBreakdownVisible && (
+          {showFieldBreakdownCard && (
             <div className="relative min-w-0">
               {onExpandCard && (
                 <div className="absolute top-3.5 right-3.5 z-10">

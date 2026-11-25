@@ -1,8 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsDown,
+  ChevronsUp,
+  SlidersHorizontal,
+  LayoutDashboard,
+} from 'lucide-react';
 import FilterBar from '@/components/FilterBar';
 import LogCard, { LogItem } from '@/components/LogCard';
 import LogModal, { CategoryTemplate } from '@/components/LogModal';
@@ -470,12 +478,25 @@ export default function DashboardClient({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-2.5 sm:space-y-3.5 flex flex-col h-[calc(100vh-5rem)] sm:h-[calc(100vh-7rem)] px-2 sm:px-4">
+    <div className="max-w-7xl mx-auto space-y-2.5 sm:space-y-3.5 flex flex-col h-[calc(100vh-5rem)] sm:h-[calc(100vh-7rem)] px-2 sm:px-4">
       <div className="shrink-0 space-y-2">
-        <div>
-          <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
-            Logs Dashboard
-          </h1>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
+            <h1 className="text-sm sm:text-xl font-bold tracking-tight text-gray-900">
+              Logs Dashboard
+            </h1>
+          </div>
+
+          {categories.length > 0 && (
+            <Link
+              href="/dashboard/explorer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-blue-100 bg-white hover:bg-blue-50/70 text-blue-700 text-xs font-semibold transition-colors"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Field Explorer</span>
+            </Link>
+          )}
         </div>
 
         <FilterBar

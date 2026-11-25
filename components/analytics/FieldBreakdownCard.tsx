@@ -113,8 +113,8 @@ export default function FieldBreakdownCard({
   const rows: FieldBreakdownRow[] = Array.isArray(breakdownResult)
     ? breakdownResult
     : Array.isArray(breakdownResult?.rows)
-    ? breakdownResult.rows
-    : [];
+      ? breakdownResult.rows
+      : [];
 
   const hasMetricValues = Array.isArray(breakdownResult)
     ? rows.some((r: any) => r?.metricValue !== null && r?.metricValue !== undefined)
@@ -126,6 +126,14 @@ export default function FieldBreakdownCard({
 
   const showMetricColumn = hasMetricValues && Boolean(activeMetric);
   const totalCount = rows.reduce((acc, r) => acc + (Number(r?.count) || 0), 0);
+  const unitLabel =
+    activeField?.kind === 'tags'
+      ? totalCount === 1
+        ? 'tag match'
+        : 'tag matches'
+      : totalCount === 1
+        ? 'entry'
+        : 'entries';
 
   const layoutColsClass = showMetricColumn
     ? 'grid-cols-[minmax(0,1.25fr)_minmax(0,1.15fr)_auto]'
@@ -236,8 +244,8 @@ export default function FieldBreakdownCard({
                       showMetricColumn && row.metricPercentage !== null
                         ? row.metricPercentage
                         : totalCount > 0
-                        ? (row.count / totalCount) * 100
-                        : 0,
+                          ? (row.count / totalCount) * 100
+                          : 0,
                       3
                     )
                   )}%`,
@@ -253,8 +261,7 @@ export default function FieldBreakdownCard({
       <div className="text-[11px] text-gray-500 border-t border-gray-100 pt-2 mt-1 truncate shrink-0">
         <span>
           <strong className="text-gray-700">{activeField?.label}</strong> across{' '}
-          <strong className="text-gray-800">{totalCount}</strong>{' '}
-          {totalCount === 1 ? 'entry' : 'entries'}
+          <strong className="text-gray-800">{totalCount}</strong> {unitLabel}
           {showMetricColumn && activeMetric ? (
             <>
               {' '}

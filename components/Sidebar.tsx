@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
+  SlidersHorizontal,
   Tags,
   FolderKanban,
   BarChart3,
@@ -46,6 +47,7 @@ export default function Sidebar({
 
   const navItems = [
     { name: 'Logs Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Field Explorer', href: '/dashboard/explorer', icon: SlidersHorizontal },
     { name: 'Insights & Analytics', href: '/dashboard/analytics', icon: BarChart3 },
     { name: 'Categories & Templates', href: '/dashboard/categories', icon: FolderKanban },
     // { name: 'Tags Management', href: '/dashboard/tags', icon: Tags },
