@@ -101,8 +101,11 @@ export function coerceFieldValue(rawValue: string, fieldType?: string): any {
 }
 
 export function getLastModifiedRaw(log: LogItem): string | Date | undefined {
-  const anyLog = log as LogItem & { updatedAt?: string | Date };
-  return anyLog.updatedAt || log.timestamp || log.loggedAt || log.createdAt;
+  const anyLog = log as LogItem & {
+    updatedAt?: string | Date;
+    createdAt?: string | Date;
+  };
+  return anyLog.updatedAt || log.timestamp || log.loggedAt || anyLog.createdAt;
 }
 
 export function formatLastModified(log: LogItem): string | null {

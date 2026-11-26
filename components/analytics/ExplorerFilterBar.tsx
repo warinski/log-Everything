@@ -24,7 +24,7 @@ interface ExplorerFilterBarProps {
 }
 
 const EMOJI_PREFIX_REGEX =
-  /^(?<emoji>[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F\u200D]+)\s*/u;
+  /^([\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F\u200D]+)\s*/u;
 
 function splitCategoryDisplay(category: any): { emoji: string; name: string } {
   if (!category) {
@@ -45,10 +45,11 @@ function splitCategoryDisplay(category: any): { emoji: string; name: string } {
   }
 
   const match = rawName.match(EMOJI_PREFIX_REGEX);
-  if (match?.groups?.emoji) {
+  if (match?.[1]) {
+    const emojiPrefix = match[1];
     const nameWithoutEmoji = rawName.slice(match[0].length).trim();
     return {
-      emoji: match.groups.emoji,
+      emoji: emojiPrefix,
       name: nameWithoutEmoji || rawName || 'Category',
     };
   }

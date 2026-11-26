@@ -5,7 +5,7 @@ import { CategoryTemplate } from '@/components/LogModal';
 import TimelineTrendCard from '@/components/analytics/TimelineTrendCard';
 import FieldBreakdownCard from '@/components/analytics/FieldBreakdownCard';
 import { TrendGranularity } from '@/lib/analytics/timelineTrend';
-import { formatMetric } from '@/lib/analytics/aggregations';
+import { FieldStat, formatMetric } from '@/lib/analytics/aggregations';
 
 export type ExpandedCardTarget =
   | { cardKey: 'matching_logs' }
@@ -22,24 +22,6 @@ interface PieSlice {
   percentage: number;
   startAngle: number;
   endAngle: number;
-}
-
-interface FieldStat {
-  key: string;
-  label: string;
-  type?: string;
-  count: number;
-  trueCount?: number;
-  sum?: number;
-  avg: number;
-  min?: number;
-  max?: number;
-  byCategory: Array<{
-    categoryName: string;
-    count: number;
-    trueCount?: number;
-    sum?: number;
-  }>;
 }
 
 interface ExpandedCardContentProps {
@@ -182,11 +164,13 @@ export default function ExpandedCardContent({
   }
 
   if (expandedCard.cardKey === 'field_stats' && expandedFieldStat) {
+    const statType = expandedFieldStat.type || 'number';
+
     return (
       <div className="bg-white border border-blue-100 rounded-2xl p-5 sm:p-6 space-y-6 shadow-2xs">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {expandedFieldStat.type === 'duration' && (
+            {statType === 'duration' && (
               <Clock className="w-4 h-4 text-blue-500" />
             )}
             <span className="text-sm font-bold text-gray-800">
@@ -198,14 +182,14 @@ export default function ExpandedCardContent({
           </span>
         </div>
 
-        {expandedFieldStat.type === 'boolean' ? (
+        {statType === 'boolean' ? (
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
               <span className="block text-xs text-gray-400 uppercase font-semibold">
                 Checked
               </span>
               <span className="text-2xl font-extrabold text-gray-900 mt-1 block">
-                {expandedFieldStat.trueCount} / {expandedFieldStat.count}
+                {expandedFieldStat.trueCount ?? 0} / {expandedFieldStat.count}
               </span>
             </div>
             <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
@@ -221,10 +205,10 @@ export default function ExpandedCardContent({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
               <span className="text-gray-400 block text-xs uppercase font-semibold">
-                {expandedFieldStat.type === 'duration' ? 'Total Time' : 'Sum'}
+                {statType === 'duration' ? 'Total Time' : 'Sum'}
               </span>
               <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                {formatMetric(expandedFieldStat.sum, expandedFieldStat.type)}
+                {formatMetric(expandedFieldStat.sum ?? 0, statType)}
               </span>
             </div>
             <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
@@ -232,7 +216,7 @@ export default function ExpandedCardContent({
                 Average
               </span>
               <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                {formatMetric(expandedFieldStat.avg, expandedFieldStat.type)}
+                {formatMetric(expandedFieldStat.avg, statType)}
               </span>
             </div>
             <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
@@ -240,7 +224,7 @@ export default function ExpandedCardContent({
                 Min
               </span>
               <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                {formatMetric(expandedFieldStat.min, expandedFieldStat.type)}
+                {formatMetric(expandedFieldStat.min ?? 0, statType)}
               </span>
             </div>
             <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100/70">
@@ -248,7 +232,7 @@ export default function ExpandedCardContent({
                 Max
               </span>
               <span className="font-extrabold text-gray-900 text-lg sm:text-xl mt-1 block">
-                {formatMetric(expandedFieldStat.max, expandedFieldStat.type)}
+                {formatMetric(expandedFieldStat.max ?? 0, statType)}
               </span>
             </div>
           </div>
@@ -268,9 +252,9 @@ export default function ExpandedCardContent({
                 >
                   <span className="text-gray-700 truncate">{contrib.categoryName}</span>
                   <span className="font-semibold text-gray-900 shrink-0">
-                    {expandedFieldStat.type === 'boolean'
-                      ? `${contrib.trueCount}/${contrib.count}`
-                      : formatMetric(contrib.sum, expandedFieldStat.type)}
+                    {statType === 'boolean'
+                      ? `${contrib.trueCount ?? 0}/${contrib.count}`
+                      : formatMetric(contrib.sum ?? 0, statType)}
                   </span>
                 </div>
               ))}
