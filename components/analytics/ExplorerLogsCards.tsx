@@ -200,11 +200,12 @@ export default function ExplorerLogsCards({
           {sortedLogs.map((log) => {
             const resolvedUserId = userId || log.userId;
             const fieldMatchesValue =
-              activeField &&
-              selectedValue &&
+              Boolean(activeField) &&
+              Boolean(selectedValue) &&
               selectedValue !== ALL_VALUES_SENTINEL &&
-              normalizeFieldValue(resolveLogAttribute(log, activeField.key)) ===
-                selectedValue;
+              normalizeFieldValue(
+                resolveLogAttribute(log.attributes, activeField!).value
+              ) === selectedValue;
 
             return (
               <div
