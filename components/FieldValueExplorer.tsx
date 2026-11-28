@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { LogItem } from '@/components/LogCard';
 import { updateLog } from '@/lib/actions/logActions';
@@ -47,11 +47,13 @@ export default function FieldValueExplorer({
   onLogUpdated,
   onSaveExplorerView,
 }: FieldValueExplorerProps) {
+  const logsPaneRef = useRef<HTMLDivElement | null>(null);
+  const [logsPaneMaxHeight, setLogsPaneMaxHeight] = useState<number | null>(null);
+
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [selectedFieldKey, setSelectedFieldKey] = useState<string>('');
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [sortConfig, setSortConfig] = useState<ExplorerSortConfig | null>(null);
-  const [isEditMode, setIsEditMode] = useState<boolean>(false);
 
   const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
   const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
@@ -59,6 +61,14 @@ export default function FieldValueExplorer({
   const [draftTags, setDraftTags] = useState<Record<string, string>>({});
   const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+
+  const recalcLogsPaneHeight = useCallback(() => {
+    if (!logsPaneRef.current || typeof window === 'undefined') return;
+    const rect = logsPaneRef.current.getBoundingClientRect();
+    const bottomBuffer = 20;
+    const available = Math.floor(window.innerHeight - rect.top - bottomBuffer);
+    setLogsPaneMaxHeight(Math.max(240, available));
+  }, []);
 
   useEffect(() => {
     if (!selectedCategoryId && categories.length > 0) {
@@ -149,6 +159,28 @@ export default function FieldValueExplorer({
       ),
     [categoryLogs, activeField, selectedValue, sortConfig, attributeFields]
   );
+
+  useLayoutEffect(() => {
+    recalcLogsPaneHeight();
+  }, [
+    recalcLogsPaneHeight,
+    categories.length,
+    selectedCategoryId,
+    selectedFieldKey,
+    selectedValue,
+    feedbackMessage,
+    sortedLogs.length,
+  ]);
+
+  useEffect(() => {
+    const handleResize = () => recalcLogsPaneHeight();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [recalcLogsPaneHeight]);
 
   useEffect(() => {
     if (sortedLogs.length === 0) return;
@@ -362,38 +394,48 @@ export default function FieldValueExplorer({
         </div>
       )}
 
-      <ExplorerLogsTable
-        sortedLogs={sortedLogs}
-        activeField={activeField}
-        selectedFieldKey={selectedFieldKey}
-        attributeFields={attributeFields}
-        sortConfig={sortConfig}
-        onToggleSort={handleToggleSort}
-        onClearSort={() => setSortConfig(null)}
-        isEditMode={isEditMode}
-        onToggleEditMode={() => setIsEditMode((prev) => !prev)}
-        draftTitles={draftTitles}
-        onDraftTitleChange={(logId, val) =>
-          setDraftTitles((prev) => ({ ...prev, [logId]: val }))
+      <div
+        ref={logsPaneRef}
+        style={
+          logsPaneMaxHeight !== null
+            ? { maxHeight: `${logsPaneMaxHeight}px` }
+            : undefined
         }
-        onCommitTitle={commitInlineTitleUpdate}
-        draftInputs={draftInputs}
-        onDraftInputChange={(cellId, val) =>
-          setDraftInputs((prev) => ({ ...prev, [cellId]: val }))
-        }
-        onCommitAttribute={commitInlineFieldUpdate}
-        draftNotes={draftNotes}
-        onDraftNotesChange={(logId, val) =>
-          setDraftNotes((prev) => ({ ...prev, [logId]: val }))
-        }
-        onCommitNotes={commitInlineNotesUpdate}
-        draftTags={draftTags}
-        onDraftTagsChange={(logId, val) =>
-          setDraftTags((prev) => ({ ...prev, [logId]: val }))
-        }
-        onCommitTags={commitInlineTagsUpdate}
-        savingCellKey={savingCellKey}
-      />
+        className="overflow-y-auto pr-0.5 [-webkit-overflow-scrolling:touch]"
+      >
+        <ExplorerLogsTable
+          userId={userId}
+          sortedLogs={sortedLogs}
+          activeField={activeField}
+          selectedFieldKey={selectedFieldKey}
+          selectedValue={selectedValue}
+          attributeFields={attributeFields}
+          sortConfig={sortConfig}
+          onToggleSort={handleToggleSort}
+          onClearSort={() => setSortConfig(null)}
+          draftTitles={draftTitles}
+          onDraftTitleChange={(logId, val) =>
+            setDraftTitles((prev) => ({ ...prev, [logId]: val }))
+          }
+          onCommitTitle={commitInlineTitleUpdate}
+          draftInputs={draftInputs}
+          onDraftInputChange={(cellId, val) =>
+            setDraftInputs((prev) => ({ ...prev, [cellId]: val }))
+          }
+          onCommitAttribute={commitInlineFieldUpdate}
+          draftNotes={draftNotes}
+          onDraftNotesChange={(logId, val) =>
+            setDraftNotes((prev) => ({ ...prev, [logId]: val }))
+          }
+          onCommitNotes={commitInlineNotesUpdate}
+          draftTags={draftTags}
+          onDraftTagsChange={(logId, val) =>
+            setDraftTags((prev) => ({ ...prev, [logId]: val }))
+          }
+          onCommitTags={commitInlineTagsUpdate}
+          savingCellKey={savingCellKey}
+        />
+      </div>
     </section>
   );
 }

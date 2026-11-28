@@ -513,7 +513,7 @@ export default function DashboardClient({
 
       <div className="flex-1 min-h-0 bg-white border border-blue-100 rounded-2xl shadow-2xs overflow-hidden flex flex-col">
         {!isLoading && sortedLogs.length > 0 && (
-          <div className="shrink-0 px-3 py-2 border-b border-blue-100 bg-white flex items-center justify-between gap-2">
+          <div className="shrink-0 px-3 py-2 border-b border-blue-100 bg-white flex items-center justify-between gap-3">
             <p className="text-xs text-gray-600 min-w-0">
               <strong className="font-semibold text-gray-900">{startEntry}</strong> to{' '}
               <strong className="font-semibold text-gray-900">{endEntry}</strong> of{' '}
@@ -524,11 +524,11 @@ export default function DashboardClient({
               </span>
             </p>
 
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-4 sm:gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={handleToggleAllCurrentPage}
-                className="w-7 h-7 rounded-lg border border-blue-100 bg-blue-50/50 hover:bg-blue-100/70 text-blue-700 transition-colors cursor-pointer inline-flex items-center justify-center"
+                className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-blue-100 bg-blue-50/50 hover:bg-blue-100/70 text-blue-700 transition-colors cursor-pointer inline-flex items-center justify-center shrink-0"
                 title={
                   areAllCurrentPageExpanded
                     ? 'Collapse all logs on this page'
@@ -554,7 +554,7 @@ export default function DashboardClient({
                     onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
                     aria-label="Previous page"
-                    className="w-7 h-7 rounded-lg border border-blue-100 bg-white text-gray-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center"
+                    className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-blue-100 bg-white text-gray-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center shrink-0"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
@@ -563,7 +563,7 @@ export default function DashboardClient({
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
                     aria-label="Next page"
-                    className="w-7 h-7 rounded-lg border border-blue-100 bg-white text-gray-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center"
+                    className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-blue-100 bg-white text-gray-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center shrink-0"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
